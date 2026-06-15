@@ -14,10 +14,10 @@ export async function POST(request: NextRequest) {
 	let body: string | Record<string, unknown>;
 
 	if (contentType?.includes('application/json')) {
-		body = await request.json();
+		body = (await request.json()) as Record<string, unknown>;
 	} else {
 		const text = await request.text();
-		body = text && text.trim() ? text : {};
+		body = text?.trim() ? text : {};
 	}
 
 	const tenantId = 'dev'

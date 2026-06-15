@@ -25,8 +25,10 @@ import { db } from "@/server/db";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
+  const userId = opts.headers.get("x-user-id");
   return {
     db,
+    userId,
     ...opts,
   };
 };

@@ -5,7 +5,7 @@ const URL_RE =
 
 export function parseEmailAddress(raw: string) {
   const trimmed = raw.trim();
-  const match = trimmed.match(/^(.+?)\s*<([^>]+)>$/);
+  const match = /^(.+?)\s*<([^>]+)>$/.exec(trimmed);
   if (match) {
     return {
       name: match[1]!.replace(/^"|"$/g, "").trim(),

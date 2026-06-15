@@ -13,18 +13,13 @@ export const postRouter = createTRPCRouter({
 
   create: publicProcedure
     .input(z.object({ name: z.string().min(1) }))
-    .mutation(async ({ ctx, input }) => {
+    .mutation(async () => {
       // await ctx.db.insert(posts).values({
       //   name: input.name,
       // });
     }),
 
-  getLatest: publicProcedure.query(async ({ ctx }) => {
-    // const post = await ctx.db.query.posts.findFirst({
-    //   orderBy: (posts, { desc }) => [desc(posts.createdAt)],
-    // });
-
-    // return post ?? null;
-    return null;
+  getLatest: publicProcedure.query(async () => {
+    return null as { name: string } | null;
   }),
 });

@@ -122,10 +122,7 @@ export const gmailRouter = createTRPCRouter({
       });
 
       const headers = message.payload?.headers;
-      const body =
-        extractBodyFromPayload(message.payload) ??
-        message.snippet ??
-        "";
+      const body = extractBodyFromPayload(message.payload) ?? message.snippet ?? "";
 
       return {
         id: message.id ?? input.id,
@@ -135,8 +132,7 @@ export const gmailRouter = createTRPCRouter({
         to: getHeader(headers, "To"),
         body,
         snippet: message.snippet ?? "",
-        date:
-          message.internalDate != null ? String(message.internalDate) : null,
+        date: message.internalDate != null ? String(message.internalDate) : null,
       };
     }),
 
@@ -158,9 +154,46 @@ export const gmailRouter = createTRPCRouter({
 
   refreshInbox: publicProcedure.mutation(async ({ ctx }) => {
     const tenant = await getTenant(ctx.userId);
-    const result = await tenant.gmail.api.threads.list({ maxResults: 50 });
+    const result = await tenant.gmail.api.messages.list({ maxResults: 25 });
+    
+    if (result.messages) {
+      for (const msgIndex of result.messages) {
+        if (!msgIndex.id) continue;
+        
+        try {
+          const fullMessage = await tenant.gmail.api.messages.get({
+            id: msgIndex.id,
+            format: "full",
+          });
+          
+          const headers = fullMessage.payload?.headers;
+          const subject = headers?.find((h) => h.name === "Subject")?.value ?? "(No Subject)";
+          const from = headers?.find((h) => h.name === "From")?.value ?? "Unknown Sender";
+          const to = headers?.find((h) => h.name === "To")?.value ?? "";
+          const computedBody = extractBodyFromPayload(fullMessage.payload) ?? fullMessage.snippet ?? "";
+
+          await tenant.gmail.db.messages.upsert({
+            entity_id: fullMessage.id!,
+            data: {
+              threadId: fullMessage.threadId ?? "",
+              snippet: fullMessage.snippet ?? "",
+              subject,
+              from,
+              to,
+              body: computedBody,
+              internalDate: fullMessage.internalDate != null ? String(fullMessage.internalDate) : String(Date.now()),
+              createdAt: new Date(),
+            },
+            updated_at: new Date(),
+          });
+        } catch (error) {
+          console.error(`Failed background sync processing: ${msgIndex.id}:`, error);
+        }
+      }
+    }
+
     return {
-      synced: result.threads?.length ?? 0,
+      synced: result.messages?.length ?? 0,
     };
   }),
 

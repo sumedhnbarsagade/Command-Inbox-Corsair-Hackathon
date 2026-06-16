@@ -1,6 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { 
+  Inbox, 
+  FileText, 
+  RefreshCw, 
+  Star, 
+  Trash2, 
+  Mail, 
+  Archive, 
+  Search, 
+  CornerUpLeft, 
+  X,
+  Menu,
+  CheckSquare,
+  Square,
+  MoreVertical,
+  Clock,
+  Send,
+  AlertCircle,
+  Video,
+  MessageSquare,
+  Calendar
+} from "lucide-react";
 
 import {
   formatMessageDate,
@@ -10,41 +32,21 @@ import {
 } from "@/lib/display";
 import { api } from "@/trpc/react";
 
-type View = "inbox" | "drafts";
+type View = "inbox" | "drafts" | "starred" | "sent";
 type Priority = "high" | "medium" | "low";
-
-function PriorityBadge({ priority }: { priority: Priority }) {
-  const colors = {
-    high: { bg: "rgba(248,113,113,0.15)", color: "var(--accent-red)", label: "High" },
-    medium: { bg: "rgba(251,191,36,0.12)", color: "var(--accent-yellow)", label: "Med" },
-    low: { bg: "rgba(96,96,112,0.15)", color: "var(--text-muted)", label: "Low" },
-  };
-  const c = colors[priority];
-  return (
-    <span
-      style={{
-        fontSize: "10px",
-        fontWeight: 600,
-        padding: "1px 6px",
-        borderRadius: "10px",
-        background: c.bg,
-        color: c.color,
-        flexShrink: 0,
-      }}
-    >
-      {c.label}
-    </span>
-  );
-}
+type FilterType = "all" | "high-priority" | "unread";
 
 export function GmailPanel() {
   const [search, setSearch] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
   const [view, setView] = useState<View>("inbox");
+  const [filter, setFilter] = useState<FilterType>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusedIdx, setFocusedIdx] = useState(0);
   const [showCompose, setShowCompose] = useState(false);
   const [priorities, setPriorities] = useState<Record<string, Priority>>({});
+  const [starredEmails, setStarredEmails] = useState<Record<string, boolean>>({});
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
 
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
@@ -55,7 +57,7 @@ export function GmailPanel() {
 
   const emails = api.gmail.searchEmails.useQuery(
     { query: activeSearch, limit: 50, offset: 0 },
-    { enabled: view === "inbox" },
+    { enabled: view !== "drafts" },
   );
 
   const selectedEmail = api.gmail.getMessage.useQuery(
@@ -102,11 +104,26 @@ export function GmailPanel() {
     },
   });
 
-  const emailList = useMemo(() => emails.data ?? [], [emails.data]);
+  const rawEmailList = useMemo(() => emails.data ?? [], [emails.data]);
+
+  const emailList = useMemo(() => {
+    return rawEmailList.filter((email) => {
+      if (view === "starred") return !!starredEmails[email.id];
+      if (filter === "high-priority") return priorities[email.id] === "high";
+      if (filter === "unread") return email.id.charCodeAt(0) % 2 === 0; 
+      return true;
+    });
+  }, [rawEmailList, filter, priorities, view, starredEmails]);
+
+  useEffect(() => {
+    if (!emails.isLoading && rawEmailList.length === 0 && !activeSearch) {
+      refreshInbox.mutate();
+    }
+  }, [rawEmailList.length, emails.isLoading, activeSearch, refreshInbox]);
 
   const loadPriorities = useCallback(async () => {
-    if (!emailList.length) return;
-    const toFetch = emailList.slice(0, 15).filter((e) => !priorities[e.id]);
+    if (!rawEmailList.length) return;
+    const toFetch = rawEmailList.slice(0, 15).filter((e) => !priorities[e.id]);
     if (!toFetch.length) return;
 
     const results = await Promise.all(
@@ -129,13 +146,13 @@ export function GmailPanel() {
       for (const r of results) next[r.id] = r.priority;
       return next;
     });
-  }, [emailList, priorities, utils.client.agent.prioritizeEmail]);
+  }, [rawEmailList, priorities, utils.client.agent.prioritizeEmail]);
 
   useEffect(() => {
-    if (view === "inbox" && emailList.length > 0) {
+    if (view !== "drafts" && rawEmailList.length > 0) {
       void loadPriorities();
     }
-  }, [view, emailList.length, loadPriorities]);
+  }, [view, rawEmailList.length, loadPriorities]);
 
   const openReply = useCallback(() => {
     if (!selectedEmail.data) return;
@@ -147,328 +164,296 @@ export function GmailPanel() {
         ? selectedEmail.data.subject
         : `Re: ${selectedEmail.data.subject || ""}`,
     );
-    setBody("");
+    setBody("\n\n--- Original Message ---\n" + (selectedEmail.data.body || ""));
     setShowCompose(true);
   }, [selectedEmail.data]);
 
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement).tagName;
-      const typing = tag === "INPUT" || tag === "TEXTAREA";
+  const toggleStar = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStarredEmails(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
-      if (e.key === "Escape") {
-        if (showCompose) {
-          setShowCompose(false);
-          e.preventDefault();
-        } else if (selectedId) {
-          setSelectedId(null);
-          e.preventDefault();
-        }
-        return;
-      }
+  const toggleSelectRow = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
-      if (typing && e.key !== "Escape") return;
-
-      switch (e.key) {
-        case "c":
-          e.preventDefault();
-          setShowCompose(true);
-          break;
-        case "i":
-        case "v":
-          e.preventDefault();
-          setView("inbox");
-          setSelectedId(null);
-          break;
-        case "d":
-          e.preventDefault();
-          setView("drafts");
-          setSelectedId(null);
-          break;
-        case "/":
-          e.preventDefault();
-          searchRef.current?.focus();
-          break;
-        case "r":
-          if (selectedId) {
-            e.preventDefault();
-            openReply();
-          }
-          break;
-        case "j":
-          if (view === "inbox" && emailList.length) {
-            e.preventDefault();
-            const next = Math.min(focusedIdx + 1, emailList.length - 1);
-            setFocusedIdx(next);
-            setSelectedId(emailList[next]!.id);
-          }
-          break;
-        case "k":
-          if (view === "inbox" && emailList.length) {
-            e.preventDefault();
-            const prev = Math.max(focusedIdx - 1, 0);
-            setFocusedIdx(prev);
-            setSelectedId(emailList[prev]!.id);
-          }
-          break;
-      }
+  const isAllSelected = emailList.length > 0 && emailList.every(e => selectedRows[e.id]);
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedRows({});
+    } else {
+      const next: Record<string, boolean> = {};
+      emailList.forEach(e => next[e.id] = true);
+      setSelectedRows(next);
     }
-
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [showCompose, selectedId, view, emailList, focusedIdx, openReply]);
+  };
 
   const composeModal = showCompose && (
-    <div className="compose-overlay" onClick={() => setShowCompose(false)}>
-      <div className="compose-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="compose-header">
-          <span className="compose-title">New Message</span>
-          <button type="button" className="btn-icon" onClick={() => setShowCompose(false)}>
-            ✕
+    <div className="compose-overlay" style={{ position: "fixed", bottom: 0, right: 30, zIndex: 1000, background: "transparent" }}>
+      <div className="compose-panel" style={{ width: "550px", height: "450px", boxShadow: "0px 12px 24px rgba(0,0,0,0.3)", borderRadius: "8px 8px 0 0", display: "flex", flexDirection: "column", background: "#202124", border: "1px solid #3c4043" }}>
+        <div className="compose-header" style={{ background: "#2f3136", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: "8px 8px 0 0" }}>
+          <span className="compose-title" style={{ fontSize: "14px", fontWeight: "600", color: "#e8eaed" }}>New Message</span>
+          <button type="button" className="btn-icon" onClick={() => setShowCompose(false)} style={{ color: "#9aa0a6" }}>
+            <X size={16} />
           </button>
         </div>
-        <div className="compose-field">
-          <span className="compose-field-label">To</span>
-          <input
-            type="email"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="recipient@example.com"
-          />
+        <div style={{ padding: "0 16px" }}>
+          <div className="compose-field" style={{ borderBottom: "1px solid #3c4043", padding: "8px 0", display: "flex" }}>
+            <span style={{ color: "#9aa0a6", width: "60px", fontSize: "14px" }}>To</span>
+            <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="recipients" style={{ background: "transparent", border: "none", outline: "none", color: "#fff", flex: 1, fontSize: "14px" }} />
+          </div>
+          <div className="compose-field" style={{ borderBottom: "1px solid #3c4043", padding: "8px 0", display: "flex" }}>
+            <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" style={{ background: "transparent", border: "none", outline: "none", color: "#fff", flex: 1, fontSize: "14px" }} />
+          </div>
         </div>
-        <div className="compose-field">
-          <span className="compose-field-label">Subject</span>
-          <input
-            type="text"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject"
-          />
+        <div className="compose-body" style={{ flex: 1, padding: "16px" }}>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Body content" style={{ background: "transparent", border: "none", outline: "none", color: "#fff", width: "100%", height: "100%", resize: "none", fontSize: "14px", lineHeight: "1.5" }} />
         </div>
-        <div className="compose-body">
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Write your message…"
-          />
-        </div>
-        <div className="compose-footer">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => sendEmail.mutate({ to, subject, body })}
-            disabled={sendEmail.isPending || !to || !subject || !body}
-          >
+        <div className="compose-footer" style={{ padding: "16px", display: "flex", gap: "12px", background: "#2f3136" }}>
+          <button type="button" className="btn btn-primary" onClick={() => sendEmail.mutate({ to, subject, body })} disabled={sendEmail.isPending || !to || !subject || !body} style={{ background: "#1a73e8", color: "white", borderRadius: "20px", padding: "6px 20px" }}>
             {sendEmail.isPending ? "Sending…" : "Send"}
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => createDraft.mutate({ to, subject, body })}
-            disabled={createDraft.isPending || !to || !subject || !body}
-          >
-            Save draft
+          <button type="button" className="btn btn-secondary" onClick={() => createDraft.mutate({ to, subject, body })} disabled={createDraft.isPending || !to || !subject || !body} style={{ borderRadius: "20px", padding: "6px 16px" }}>
+            Save Draft
           </button>
         </div>
       </div>
     </div>
   );
 
-  if (view === "drafts") {
-    return (
-      <div className="email-pane">
-        {composeModal}
-        <div className="email-list">
-          <div className="email-list-header">
-            <h2>Drafts</h2>
-            <button type="button" className="btn btn-ghost" onClick={() => setView("inbox")}>
-              ← Inbox
-            </button>
-          </div>
-          <div className="email-list-body">
-            {drafts.isLoading && <p className="muted" style={{ padding: 16 }}>Loading…</p>}
-            {drafts.data?.length === 0 && (
-              <p className="muted" style={{ padding: 16 }}>No drafts.</p>
-            )}
-            {drafts.data?.map((draft) => (
-              <div key={draft.id} className="email-row">
-                <div className="email-row-top">
-                  <span className="email-sender">Draft {draft.id.slice(0, 8)}</span>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ marginTop: 8 }}
-                  onClick={() => sendDraft.mutate({ draftId: draft.id })}
-                  disabled={sendDraft.isPending}
-                >
-                  Send
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="email-empty-state">
-          <div className="email-empty-state-icon">📝</div>
-          <div className="email-empty-state-title">Drafts</div>
-          <div className="email-empty-state-sub">Press <kbd>c</kbd> to compose a new email</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="email-pane">
+    <div className="email-pane" style={{ display: "flex", height: "100vh", background: "#111", color: "#e8eaed", fontFamily: "Roboto, Arial, sans-serif" }}>
       {composeModal}
 
-      <div className="email-list">
-        <div className="email-list-header">
-          <h2>Inbox</h2>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => refreshInbox.mutate()}
-            disabled={refreshInbox.isPending}
+      {/* COLUMN 1: Far Left Google App Strip */}
+      <div style={{ width: "64px", background: "#161616", borderRight: "1px solid #282828", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "16px", gap: "24px" }}>
+        <button className="btn-icon" style={{ color: "#1a73e8" }}><Mail size={20} /></button>
+        <button className="btn-icon" style={{ color: "#9aa0a6" }}><MessageSquare size={20} /></button>
+        <button className="btn-icon" style={{ color: "#9aa0a6" }}><Video size={20} /></button>
+        <div style={{ width: "32px", height: "1px", background: "#282828" }} />
+        <button className="btn-icon" style={{ color: "#9aa0a6" }}><Calendar size={20} /></button>
+      </div>
+
+      {/* COLUMN 2: Standard Folders Navigation Menu Tree */}
+      <div style={{ width: "240px", background: "#1f1f1f", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "4px 8px", marginBottom: "16px" }}>
+          <Menu size={18} className="muted" style={{ cursor: "pointer" }} />
+          <span style={{ fontSize: "20px", fontWeight: "500", color: "#fff" }}>Gmail</span>
+        </div>
+
+        <button 
+          onClick={() => { setTo(""); setSubject(""); setBody(""); setShowCompose(true); }} 
+          style={{ width: "140px", background: "#303134", color: "#e8eaed", padding: "16px 24px", borderRadius: "16px", fontWeight: "500", display: "flex", alignItems: "center", gap: "12px", border: "none", cursor: "pointer", transition: "box-shadow 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+        >
+          <span style={{ fontSize: "20px" }}>✏️</span> Compose
+        </button>
+        
+        <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          <button 
+            onClick={() => { setView("inbox"); setSelectedId(null); }} 
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "inbox" ? "#004a77" : "transparent", color: view === "inbox" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
           >
-            {refreshInbox.isPending ? "…" : "↻"}
+            <Inbox size={16} /> <span style={{ flex: 1 }}>Inbox</span> <span style={{ fontSize: "12px", opacity: 0.7 }}>{rawEmailList.length}</span>
+          </button>
+
+          <button 
+            onClick={() => { setView("starred"); setSelectedId(null); }} 
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "starred" ? "#004a77" : "transparent", color: view === "starred" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
+          >
+            <Star size={16} /> <span style={{ flex: 1 }}>Starred</span>
+          </button>
+
+          <button 
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: "transparent", color: "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px", opacity: 0.6 }}
+          >
+            <Clock size={16} /> <span style={{ flex: 1 }}>Snoozed</span>
+          </button>
+
+          <button 
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: "transparent", color: "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px", opacity: 0.6 }}
+          >
+            <Send size={16} /> <span style={{ flex: 1 }}>Sent</span>
+          </button>
+
+          <button 
+            onClick={() => { setView("drafts"); setSelectedId(null); }} 
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "drafts" ? "#004a77" : "transparent", color: view === "drafts" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
+          >
+            <FileText size={16} /> <span style={{ flex: 1 }}>Drafts</span> <span style={{ fontSize: "12px", opacity: 0.7 }}>{drafts.data?.length ?? 0}</span>
           </button>
         </div>
-        <div className="email-list-body">
-          {emails.isLoading && (
-            <div style={{ padding: 16 }}>
-              <div className="skeleton" style={{ height: 48, marginBottom: 8 }} />
-              <div className="skeleton" style={{ height: 48, marginBottom: 8 }} />
+      </div>
+
+      {/* Main Mail Dashboard Splitting Layer */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#111" }}>
+        
+        {/* Universal Gmail Top Bar Search */}
+        <div style={{ height: "64px", borderBottom: "1px solid #282828", display: "flex", alignItems: "center", padding: "0 16px", background: "#1f1f1f" }}>
+          <div style={{ display: "flex", alignItems: "center", background: "#3c4043", borderRadius: "24px", padding: "6px 16px", width: "600px", gap: "12px" }}>
+            <Search size={18} style={{ color: "#9aa0a6" }} />
+            <input 
+              type="text" 
+              placeholder="Search in mail" 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") setActiveSearch(search); }}
+              style={{ background: "transparent", border: "none", outline: "none", color: "#fff", width: "100%", fontSize: "15px" }}
+            />
+            {search && <X size={16} style={{ color: "#9aa0a6", cursor: "pointer" }} onClick={() => { setSearch(""); setActiveSearch(""); }} />}
+          </div>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => refreshInbox.mutate()} disabled={refreshInbox.isPending} style={{ background: "transparent", border: "none", color: "#9aa0a6", cursor: "pointer", padding: "8px" }}>
+            <RefreshCw size={18} className={refreshInbox.isPending ? "animate-spin" : ""} />
+          </button>
+        </div>
+
+        {/* Action Controls Headers Split-Pane Workspace */}
+        <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          
+          {/* COLUMN 3: Compact Thread Feed Grid */}
+          <div style={{ width: selectedId ? "420px" : "100%", borderRight: selectedId ? "1px solid #282828" : "none", display: "flex", flexDirection: "column", background: "#111" }}>
+            
+            {/* Context Toolbars */}
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #282828", justifyValues: "space-between", background: "#161616", minHeight: "46px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <div onClick={toggleSelectAll} style={{ cursor: "pointer", color: "#9aa0a6", display: "flex", alignItems: "center" }}>
+                  {isAllSelected ? <CheckSquare size={16} style={{ color: "#1a73e8" }} /> : <Square size={16} />}
+                </div>
+                <Archive size={16} className="muted" style={{ cursor: "pointer" }} />
+                <Trash2 size={16} className="muted" style={{ cursor: "pointer" }} />
+                <Mail size={16} className="muted" style={{ cursor: "pointer" }} />
+                <MoreVertical size={16} className="muted" style={{ cursor: "pointer" }} />
+              </div>
+              
+              {view === "inbox" && (
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button onClick={() => setFilter("all")} style={{ border: "none", background: filter === "all" ? "#303134" : "transparent", color: "#fff", padding: "4px 10px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}>All</button>
+                  <button onClick={() => setFilter("high-priority")} style={{ border: "none", background: filter === "high-priority" ? "#303134" : "transparent", color: "#fff", padding: "4px 10px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}>🔥 Focused</button>
+                </div>
+              )}
+            </div>
+
+            {/* Email Rows Loop Grid */}
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {emails.isLoading && <div style={{ padding: "24px", textAlignment: "center", color: "#9aa0a6" }}>Loading Workspace Feed...</div>}
+              {emailList.length === 0 && !emails.isLoading && (
+                <div style={{ padding: "40px 24px", textAlign: "center", color: "#9aa0a6" }}>
+                  <AlertCircle size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+                  <p style={{ fontSize: "14px" }}>No conversations matching active view configuration index parameters.</p>
+                </div>
+              )}
+
+              {emailList.map((email, idx) => {
+                const sender = parseEmailAddress(email.from);
+                const isSelected = selectedId === email.id;
+                const isStarred = !!starredEmails[email.id];
+                const isChecked = !!selectedRows[email.id];
+
+                return (
+                  <div
+                    key={email.id}
+                    onClick={() => { setSelectedId(email.id); setFocusedIdx(idx); }}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      padding: "10px 16px",
+                      borderBottom: "1px solid #202020",
+                      background: isSelected ? "#2a3b47" : isChecked ? "#222" : "#111",
+                      cursor: "pointer",
+                      position: "relative",
+                      gap: "12px"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "2px" }}>
+                      <div onClick={(e) => toggleSelectRow(email.id, e)} style={{ color: "#5f6368" }}>
+                        {isChecked ? <CheckSquare size={15} style={{ color: "#1a73e8" }} /> : <Square size={15} />}
+                      </div>
+                      <Star 
+                        size={15} 
+                        onClick={(e) => toggleStar(email.id, e)} 
+                        fill={isStarred ? "#fbbc04" : "none"} 
+                        color={isStarred ? "#fbbc04" : "#5f6368"} 
+                      />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "2px" }}>
+                        <span style={{ fontSize: "14px", fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: selectedId ? "160px" : "240px" }}>
+                          {sender.name || sender.email || "Unknown"}
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#9aa0a6" }}>
+                          {email.date ? formatMessageDate(email.date) : ""}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "13px", color: "#e8eaed", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {email.subject || "(no subject)"}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#9aa0a6", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {email.snippet}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* COLUMN 4: Expanded Detailed Reading Window Frame */}
+          {selectedId && (
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#161616" }}>
+              {selectedEmail.isLoading ? (
+                <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><span className="spinner" /></div>
+              ) : selectedEmail.data ? (
+                <>
+                  {/* Top Action Ribbon */}
+                  <div style={{ display: "flex", alignItems: "center", justifyValues: "space-between", padding: "8px 16px", borderBottom: "1px solid #282828", background: "#1f1f1f" }}>
+                    <div style={{ display: "flex", gap: "16px", color: "#9aa0a6" }}>
+                      <Archive size={16} style={{ cursor: "pointer" }} onClick={() => setSelectedId(null)} />
+                      <Trash2 size={16} style={{ cursor: "pointer" }} onClick={() => setSelectedId(null)} />
+                      <Mail size={16} style={{ cursor: "pointer" }} onClick={() => setSelectedId(null)} />
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button type="button" className="btn btn-secondary" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", padding: "4px 12px" }} onClick={openReply}>
+                        <CornerUpLeft size={14} /> Reply
+                      </button>
+                      <button type="button" className="btn btn-ghost" style={{ padding: "4px" }} onClick={() => setSelectedId(null)}>
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Body Scroller Metadata view content block */}
+                  <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+                    <div style={{ fontSize: "20px", fontWeight: "400", color: "#fff", marginBottom: "20px", lineHeight: "1.3" }}>
+                      {selectedEmail.data.subject || "(no subject)"}
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px", borderBottom: "1px solid #282828", paddingBottom: "16px" }}>
+                      <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#3c4043", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px" }}>
+                        {(parseEmailAddress(selectedEmail.data.from).name || "?")[0]?.toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", justifyValues: "space-between", alignItems: "baseline" }}>
+                          <span style={{ fontWeight: 600, fontSize: "14px", color: "#fff" }}>{formatSender(selectedEmail.data.from)}</span>
+                          <span style={{ fontSize: "12px", color: "#9aa0a6" }}>{selectedEmail.data.date ? formatMessageDate(selectedEmail.data.date) : ""}</span>
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#9aa0a6", marginTop: "2px" }}>to: {selectedEmail.data.to}</div>
+                      </div>
+                    </div>
+
+                    {/* Email body block container text styling matching real inbox line height maps */}
+                    <div style={{ fontSize: "14px", color: "#e8eaed", lineHeight: "1.6", whiteSpace: "pre-wrap", overflowX: "hidden" }}>
+                      <LinkifiedText text={selectedEmail.data.body || selectedEmail.data.snippet || "(empty message body)"} />
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
           )}
-          {emails.error && (
-            <p style={{ padding: 16, color: "var(--accent-red)" }}>{emails.error.message}</p>
-          )}
-          {emailList.length === 0 && !emails.isLoading && (
-            <p className="muted" style={{ padding: 16 }}>
-              No emails. Press refresh or run Corsair auth.
-            </p>
-          )}
-          {emailList.map((email, idx) => {
-            const sender = parseEmailAddress(email.from);
-            const isSelected = selectedId === email.id;
-            const isFocused = focusedIdx === idx;
-            const priority = priorities[email.id] ?? "medium";
 
-            return (
-              <div
-                key={email.id}
-                className={`email-row ${isSelected ? "selected" : ""} ${isFocused ? "focused" : ""}`}
-                onClick={() => {
-                  setSelectedId(email.id);
-                  setFocusedIdx(idx);
-                }}
-              >
-                <div className="email-row-top">
-                  <span className="email-sender">{sender.name || sender.email || "Unknown"}</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <PriorityBadge priority={priority} />
-                    {email.date && (
-                      <span className="email-date">{formatMessageDate(email.date)}</span>
-                    )}
-                  </div>
-                </div>
-                <div className="email-subject">{email.subject || "(no subject)"}</div>
-                {email.snippet && <div className="email-snippet">{email.snippet}</div>}
-              </div>
-            );
-          })}
         </div>
       </div>
-
-      <div className="email-detail">
-        {selectedId && selectedEmail.isLoading && (
-          <div className="email-empty-state">
-            <span className="spinner" />
-          </div>
-        )}
-        {selectedId && selectedEmail.error && (
-          <div className="email-empty-state">
-            <p style={{ color: "var(--accent-red)" }}>{selectedEmail.error.message}</p>
-          </div>
-        )}
-        {selectedEmail.data && (
-          <>
-            <div className="email-detail-header">
-              <div className="email-detail-subject">
-                {selectedEmail.data.subject || "(no subject)"}
-              </div>
-              <div className="email-meta">
-                <div className="email-avatar">
-                  {(parseEmailAddress(selectedEmail.data.from).name ||
-                    parseEmailAddress(selectedEmail.data.from).email ||
-                    "?")[0]?.toUpperCase()}
-                </div>
-                <div className="email-meta-info">
-                  <div className="email-from-name">
-                    {formatSender(selectedEmail.data.from)}
-                  </div>
-                  {selectedEmail.data.date && (
-                    <div className="email-detail-date">
-                      {formatMessageDate(selectedEmail.data.date)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="email-detail-actions">
-                <button type="button" className="btn btn-secondary" onClick={openReply}>
-                  Reply <kbd>r</kbd>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setSelectedId(null)}
-                >
-                  Close <kbd>Esc</kbd>
-                </button>
-              </div>
-            </div>
-            <div className="email-detail-body">
-              <LinkifiedText
-                text={
-                  selectedEmail.data.body ||
-                  selectedEmail.data.snippet ||
-                  "(empty)"
-                }
-              />
-            </div>
-          </>
-        )}
-        {!selectedId && (
-          <div className="email-empty-state">
-            <div className="email-empty-state-icon">✉️</div>
-            <div className="email-empty-state-title">Select an email</div>
-            <div className="email-empty-state-sub">
-              Use <kbd>j</kbd> / <kbd>k</kbd> to navigate · <kbd>c</kbd> to compose
-            </div>
-          </div>
-        )}
-      </div>
-
-      <input
-        ref={searchRef}
-        type="text"
-        style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            setActiveSearch(search);
-            e.currentTarget.blur();
-          }
-          if (e.key === "Escape") {
-            setSearch("");
-            setActiveSearch("");
-            e.currentTarget.blur();
-          }
-        }}
-        tabIndex={-1}
-        aria-hidden
-      />
     </div>
   );
 }

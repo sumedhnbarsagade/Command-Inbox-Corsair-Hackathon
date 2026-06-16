@@ -1,64 +1,70 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
-import { formatEventWhen } from "@/lib/display";
-import { formatWeekLabel, getWeekBounds } from "@/lib/week";
+import { useMemo, useState, useEffect } from "react";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Calendar as CalendarIcon, 
+  Clock, 
+  MapPin, 
+  Plus, 
+  Grid,
+  List,
+  RefreshCw,
+  X
+} from "lucide-react";
 import { api } from "@/trpc/react";
 
-function toDatetimeLocalValue(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function getWeekDays(weekOffset: number) {
-  const { start } = getWeekBounds(weekOffset);
-  const days: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
-  return days;
-}
-
-const CHIP_COLORS = ["", "purple", "green"] as const;
+type ViewMode = "month" | "week" | "day" | "agenda";
 
 export function CalendarPanel() {
-  const [search, setSearch] = useState("");
-  const [activeSearch, setActiveSearch] = useState("");
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [showCreate, setShowCreate] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  // Swapped default view state to "month" view mode automatically
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
-  const searchRef = useRef<HTMLInputElement>(null);
-  const week = useMemo(() => getWeekBounds(weekOffset), [weekOffset]);
-  const weekLabel = formatWeekLabel(week.start, week.end);
-  const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
-  const today = new Date().toDateString();
-
-  const defaultStart = new Date();
-  defaultStart.setMinutes(0, 0, 0);
-  const defaultEnd = new Date(defaultStart);
-  defaultEnd.setHours(defaultEnd.getHours() + 1);
-
+  // Form State
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [start, setStart] = useState(toDatetimeLocalValue(defaultStart));
-  const [end, setEnd] = useState(toDatetimeLocalValue(defaultEnd));
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
   const [attendees, setAttendees] = useState("");
 
   const utils = api.useUtils();
 
-  const events = api.calendar.searchEvents.useQuery({
-    query: activeSearch,
-    weekStart: week.start.toISOString(),
-    weekEnd: week.end.toISOString(),
-    limit: 50,
-    offset: 0,
+  // Compute bounding search parameters based on active date views
+  const searchRange = useMemo(() => {
+    const start = new Date(currentDate);
+    const end = new Date(currentDate);
+
+    if (viewMode === "month") {
+      start.setDate(1);
+      end.setMonth(end.getMonth() + 1);
+      end.setDate(0);
+    } else if (viewMode === "week") {
+      const day = start.getDay();
+      start.setDate(start.getDate() - day);
+      end.setDate(end.getDate() + (6 - day));
+    } else {
+      // Day and Agenda
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    return {
+      weekStart: start.toISOString(),
+      weekEnd: end.toISOString(),
+    };
+  }, [currentDate, viewMode]);
+
+  // Fetch items via existing router schemas
+  const { data: events = [], isLoading } = api.calendar.searchEvents.useQuery({
+    query: "",
+    weekStart: searchRange.weekStart,
+    weekEnd: searchRange.weekEnd,
+    limit: 100,
+    offset: 0
   });
 
   const refreshEvents = api.calendar.refreshEvents.useMutation({
@@ -67,357 +73,298 @@ export function CalendarPanel() {
     },
   });
 
-  const createDraft = api.calendar.createDraft.useMutation({
-    onSuccess: async () => {
-      await utils.calendar.searchEvents.invalidate();
-      resetForm();
-      setShowCreate(false);
-    },
-  });
-
   const sendInvite = api.calendar.sendInvite.useMutation({
     onSuccess: async () => {
       await utils.calendar.searchEvents.invalidate();
-      resetForm();
-      setShowCreate(false);
+      setShowScheduleModal(false);
+      setSummary("");
+      setDescription("");
+      setLocation("");
+      setAttendees("");
     },
   });
 
-  function resetForm() {
-    setSummary("");
-    setDescription("");
-    setLocation("");
-    setAttendees("");
-  }
+  // Force automatic background refresh fetch when view parameters spin up empty
+  useEffect(() => {
+    if (!isLoading && events.length === 0 && !refreshEvents.isPending && !refreshEvents.isError) {
+      refreshEvents.mutate({
+        weekStart: searchRange.weekStart,
+        weekEnd: searchRange.weekEnd,
+      });
+    }
+  }, [searchRange.weekStart, searchRange.weekEnd, isLoading, events.length, refreshEvents.isPending, refreshEvents.isError]);
 
-  function parseAttendees() {
-    return attendees
-      .split(",")
-      .map((a) => a.trim())
-      .filter(Boolean);
-  }
+  // Date Calculation Core Grid Mappers
+  const monthDays = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDayIndex = new Date(year, month, 1).getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    
+    const blankCells = Array(firstDayIndex).fill(null);
+    const validCells = Array.from({ length: totalDays }, (_, i) => new Date(year, month, i + 1));
+    return [...blankCells, ...validCells];
+  }, [currentDate]);
 
-  function toIso(datetimeLocal: string) {
-    return new Date(datetimeLocal).toISOString();
-  }
+  const weekDays = useMemo(() => {
+    const start = new Date(currentDate);
+    const day = start.getDay();
+    start.setDate(start.getDate() - day);
+    
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [currentDate]);
 
-  const eventInput = {
-    summary,
-    description: description || undefined,
-    location: location || undefined,
-    start: toIso(start),
-    end: toIso(end),
-    attendees: parseAttendees(),
+  const handleNavigate = (direction: "prev" | "next") => {
+    const nextDate = new Date(currentDate);
+    const modifier = direction === "prev" ? -1 : 1;
+
+    if (viewMode === "month") {
+      nextDate.setMonth(nextDate.getMonth() + modifier);
+    } else if (viewMode === "week") {
+      nextDate.setDate(nextDate.getDate() + modifier * 7);
+    } else {
+      nextDate.setDate(nextDate.getDate() + modifier);
+    }
+    setCurrentDate(nextDate);
   };
 
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, NonNullable<typeof events.data>>();
-    for (const day of weekDays) {
-      map.set(day.toDateString(), []);
-    }
-    for (const event of events.data ?? []) {
-      if (!event.start) continue;
-      const eventDate = new Date(event.start).toDateString();
-      const list = map.get(eventDate);
-      if (list) list.push(event);
-    }
-    return map;
-  }, [events, weekDays]);
+  const isToday = (date: Date | null) => {
+    if (!date) return false;
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  };
 
-  const selectedEvent = events.data?.find((e) => e.id === selectedEventId);
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement).tagName;
-      const typing = tag === "INPUT" || tag === "TEXTAREA";
-
-      if (e.key === "Escape") {
-        if (showCreate) {
-          setShowCreate(false);
-          e.preventDefault();
-        } else if (selectedEventId) {
-          setSelectedEventId(null);
-          e.preventDefault();
-        }
-        return;
-      }
-
-      if (typing) return;
-
-      switch (e.key) {
-        case "n":
-          e.preventDefault();
-          setShowCreate(true);
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          setWeekOffset((w) => w - 1);
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          setWeekOffset((w) => w + 1);
-          break;
-        case "t":
-          e.preventDefault();
-          setWeekOffset(0);
-          break;
-        case "/":
-          e.preventDefault();
-          searchRef.current?.focus();
-          break;
-      }
-    }
-
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [showCreate, selectedEventId]);
-
-  const createModal = showCreate && (
-    <div className="compose-overlay" onClick={() => setShowCreate(false)}>
-      <div className="compose-panel" onClick={(e) => e.stopPropagation()}>
-        <div className="compose-header">
-          <span className="compose-title">New Event</span>
-          <button type="button" className="btn-icon" onClick={() => setShowCreate(false)}>
-            ✕
-          </button>
-        </div>
-        <div className="compose-field">
-          <span className="compose-field-label">Title</span>
-          <input
-            type="text"
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="Meeting title"
-          />
-        </div>
-        <div className="compose-field">
-          <span className="compose-field-label">When</span>
-          <input
-            type="datetime-local"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-          />
-        </div>
-        <div className="compose-field">
-          <span className="compose-field-label">End</span>
-          <input
-            type="datetime-local"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-          />
-        </div>
-        <div className="compose-field">
-          <span className="compose-field-label">Where</span>
-          <input
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="Location (optional)"
-          />
-        </div>
-        <div className="compose-field">
-          <span className="compose-field-label">Guests</span>
-          <input
-            type="text"
-            value={attendees}
-            onChange={(e) => setAttendees(e.target.value)}
-            placeholder="email@example.com, …"
-          />
-        </div>
-        <div className="compose-body">
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (optional)"
-            style={{ height: 80 }}
-          />
-        </div>
-        <div className="compose-footer">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => sendInvite.mutate(eventInput)}
-            disabled={
-              sendInvite.isPending ||
-              !summary ||
-              !start ||
-              !end ||
-              parseAttendees().length === 0
-            }
-          >
-            {sendInvite.isPending ? "Sending…" : "Send invite"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => createDraft.mutate(eventInput)}
-            disabled={createDraft.isPending || !summary || !start || !end}
-          >
-            Save draft
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  // Helper formatting match expressions
+  const getEventsForDate = (date: Date) => {
+    return events.filter(e => {
+      if (!e.start) return false;
+      const eventDate = new Date(e.start);
+      return eventDate.getDate() === date.getDate() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getFullYear() === date.getFullYear();
+    });
+  };
 
   return (
-    <div className="calendar-pane">
-      {createModal}
+    <div style={{ display: "flex", height: "100vh", background: "#111", color: "#e8eaed", fontFamily: "Roboto, sans-serif" }}>
+      
+      {/* SIDEBAR: Google Mini Picker Panel & Actions */}
+      <div style={{ width: "256px", background: "#1f1f1f", borderRight: "1px solid #282828", padding: "16px", display: "flex", flexDirection: "column", gap: "20px" }}>
+        <button 
+          onClick={() => {
+            setStartTime(new Date().toISOString().slice(0, 16));
+            setEndTime(new Date(Date.now() + 3600000).toISOString().slice(0, 16));
+            setShowScheduleModal(true);
+          }}
+          style={{ width: "100%", background: "#303134", color: "#fff", border: "none", borderRadius: "24px", padding: "12px 24px", fontWeight: "bold", fontSize: "14px", display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+        >
+          <Plus size={20} style={{ color: "#1a73e8" }} /> Create Event
+        </button>
 
-      <div className="calendar-header">
-        <div className="week-nav-group">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setWeekOffset((w) => w - 1)}
-            aria-label="Previous week"
-          >
-            ←
-          </button>
-          <span className="week-label">{weekLabel}</span>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setWeekOffset((w) => w + 1)}
-            aria-label="Next week"
-          >
-            →
-          </button>
-        </div>
-        {weekOffset !== 0 && (
-          <button type="button" className="btn btn-secondary" onClick={() => setWeekOffset(0)}>
-            Today
-          </button>
-        )}
-        <div className="topbar-actions" style={{ marginLeft: "auto" }}>
-          <div className="search-bar">
-            <span className="search-icon">⌕</span>
-            <input
-              ref={searchRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") setActiveSearch(search);
-                if (e.key === "Escape") {
-                  setSearch("");
-                  setActiveSearch("");
-                }
-              }}
-              placeholder="Search events… (/)"
-            />
-          </div>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setShowCreate(true)}
-          >
-            + Event
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() =>
-              refreshEvents.mutate({
-                weekStart: week.start.toISOString(),
-                weekEnd: week.end.toISOString(),
-              })
-            }
-            disabled={refreshEvents.isPending}
-          >
-            {refreshEvents.isPending ? "…" : "↻"}
-          </button>
+        {/* Navigation Short View Targets */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          <button onClick={() => setViewMode("month")} style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", background: viewMode === "month" ? "#004a77" : "transparent", color: viewMode === "month" ? "#c2e7ff" : "#e8eaed", border: "none", padding: "10px 16px", borderRadius: "20px", textAlign: "left", cursor: "pointer", fontSize: "14px" }}><Grid size={16} /> Month View</button>
+          <button onClick={() => setViewMode("week")} style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", background: viewMode === "week" ? "#004a77" : "transparent", color: viewMode === "week" ? "#c2e7ff" : "#e8eaed", border: "none", padding: "10px 16px", borderRadius: "20px", textAlign: "left", cursor: "pointer", fontSize: "14px" }}><CalendarIcon size={16} /> Week View</button>
+          <button onClick={() => setViewMode("day")} style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", background: viewMode === "day" ? "#004a77" : "transparent", color: viewMode === "day" ? "#c2e7ff" : "#e8eaed", border: "none", padding: "10px 16px", borderRadius: "20px", textAlign: "left", cursor: "pointer", fontSize: "14px" }}><Clock size={16} /> Day View</button>
+          <button onClick={() => setViewMode("agenda")} style={{ display: "flex", alignItems: "center", gap: "12px", width: "100%", background: viewMode === "agenda" ? "#004a77" : "transparent", color: viewMode === "agenda" ? "#c2e7ff" : "#e8eaed", border: "none", padding: "10px 16px", borderRadius: "20px", textAlign: "left", cursor: "pointer", fontSize: "14px" }}><List size={16} /> Agenda List</button>
         </div>
       </div>
 
-      {events.isLoading && (
-        <div style={{ padding: 20 }}>
-          <div className="skeleton" style={{ height: 120 }} />
+      {/* DASHBOARD WORKSPACE WORKFLOW */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        
+        {/* Top Control Bar Header */}
+        <div style={{ height: "64px", borderBottom: "1px solid #282828", padding: "0 24px", display: "flex", alignItems: "center", justifyValues: "space-between", background: "#1f1f1f" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <span style={{ fontSize: "22px", color: "#fff", fontWeight: "400" }}>Calendar</span>
+            <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid #5f6368", color: "#e8eaed", borderRadius: "4px", padding: "6px 12px", fontSize: "14px", cursor: "pointer" }}>Today</button>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <button onClick={() => handleNavigate("prev")} style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", padding: "6px" }}><ChevronLeft size={18} /></button>
+              <button onClick={() => handleNavigate("next")} style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", padding: "6px" }}><ChevronRight size={18} /></button>
+            </div>
+            <span style={{ fontSize: "18px", fontWeight: "500", color: "#fff", marginLeft: "8px" }}>
+              {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            </span>
+          </div>
+
+          <button 
+            onClick={() => refreshEvents.mutate({ weekStart: searchRange.weekStart, weekEnd: searchRange.weekEnd })}
+            disabled={refreshEvents.isPending}
+            style={{ background: "transparent", border: "none", color: "#9aa0a6", cursor: "pointer" }}
+          >
+            <RefreshCw size={18} className={refreshEvents.isPending ? "animate-spin" : ""} />
+          </button>
         </div>
-      )}
-      {events.error && (
-        <p style={{ padding: 20, color: "var(--accent-red)" }}>{events.error.message}</p>
-      )}
 
-      <div className="calendar-grid">
-        {weekDays.map((day, dayIdx) => {
-          const dayEvents = eventsByDay.get(day.toDateString()) ?? [];
-          const isToday = day.toDateString() === today;
+        {/* WORKSPACE CENTRAL WORKSPACE GRID VIEWS CONTAINER */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "16px", background: "#111" }}>
+          
+          {/* VIEW: MONTH GRID */}
+          {viewMode === "month" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", height: "100%", borderTop: "1px solid #282828", borderLeft: "1px solid #282828" }}>
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => (
+                <div key={day} style={{ textAlign: "center", padding: "8px 0", fontSize: "12px", color: "#9aa0a6", fontWeight: "500", borderRight: "1px solid #282828", background: "#161616" }}>{day}</div>
+              ))}
+              {monthDays.map((date, idx) => {
+                const dayEvents = date ? getEventsForDate(date) : [];
+                return (
+                  <div key={idx} style={{ borderRight: "1px solid #282828", borderBottom: "1px solid #282828", minHeight: "100px", padding: "6px", background: date ? "transparent" : "#161616" }}>
+                    {date && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
+                        <span style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", justifyValues: "center", borderRadius: "50%", background: isToday(date) ? "#1a73e8" : "transparent", color: isToday(date) ? "#fff" : "#9aa0a6", fontSize: "12px", fontWeight: "600", display: "flex", justifyContent: "center" }}>
+                          {date.getDate()}
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2px", overflowY: "hidden" }}>
+                      {dayEvents.slice(0, 3).map(event => (
+                        <div key={event.id} style={{ background: "#004a77", color: "#c2e7ff", fontSize: "11px", padding: "2px 6px", borderRadius: "4px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {event.summary}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && <div style={{ fontSize: "10px", color: "#9aa0a6", paddingLeft: "4px" }}>+ {dayEvents.length - 3} more</div>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-          return (
-            <div key={day.toDateString()} className={`calendar-day ${isToday ? "today" : ""}`}>
-              <div className="calendar-day-label">{DAY_NAMES[dayIdx]}</div>
-              <div className="calendar-day-num">{day.getDate()}</div>
-              {dayEvents.map((event, i) => (
-                <div
-                  key={event.id}
-                  className={`calendar-event-chip ${CHIP_COLORS[i % CHIP_COLORS.length] ?? ""}`}
-                  onClick={() => setSelectedEventId(event.id)}
-                  title={event.summary}
-                >
-                  {event.start && (
-                    <span style={{ opacity: 0.7, marginRight: 4 }}>
-                      {new Date(event.start).toLocaleTimeString(undefined, {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  )}
-                  {event.summary || "Untitled"}
-                </div>
+          {/* VIEW: WEEK HOURLY SPLIT */}
+          {viewMode === "week" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "10px", height: "100%" }}>
+              {weekDays.map((day, idx) => {
+                const dayEvents = getEventsForDate(day);
+                return (
+                  <div key={idx} style={{ background: "#1f1f1f", borderRadius: "8px", border: isToday(day) ? "1px solid #1a73e8" : "1px solid #282828", display: "flex", flexDirection: "column", minHeight: "450px" }}>
+                    <div style={{ padding: "12px", background: "#161616", borderRadius: "8px 8px 0 0", textAlign: "center", borderBottom: "1px solid #282828" }}>
+                      <div style={{ fontSize: "12px", color: "#9aa0a6" }}>{day.toLocaleDateString("en-US", { weekday: "short" })}</div>
+                      <div style={{ fontSize: "20px", fontWeight: "bold", margin: "4px 0", color: isToday(day) ? "#1a73e8" : "#fff" }}>{day.getDate()}</div>
+                    </div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "6px", padding: "10px" }}>
+                      {dayEvents.map(event => (
+                        <div key={event.id} style={{ background: "rgba(26,115,232,0.15)", borderLeft: "3px solid #1a73e8", padding: "8px", borderRadius: "4px" }}>
+                          <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff" }}>{event.summary}</div>
+                          {event.start && (
+                            <div style={{ fontSize: "11px", color: "#9aa0a6", display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
+                              <Clock size={12} /> {new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* VIEW: SINGLE DAY EXPANDED */}
+          {viewMode === "day" && (
+            <div style={{ background: "#1f1f1f", border: "1px solid #282828", borderRadius: "8px", padding: "24px", maxWidth: "800px" }}>
+              <div style={{ fontSize: "18px", fontWeight: "bold", marginBottom: "20px" }}>
+                {currentDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {getEventsForDate(currentDate).length === 0 ? (
+                  <div style={{ color: "#9aa0a6", fontStyle: "italic" }}>No scheduling blocks found for this calendar index date.</div>
+                ) : (
+                  getEventsForDate(currentDate).map(event => (
+                    <div key={event.id} style={{ background: "#161616", border: "1px solid #282828", borderRadius: "8px", padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff" }}>{event.summary}</div>
+                      {event.location && <div style={{ fontSize: "13px", color: "#9aa0a6", display: "flex", alignItems: "center", gap: "6px" }}><MapPin size={14} /> {event.location}</div>}
+                      {event.description && <div style={{ fontSize: "13px", color: "#9aa0a6" }}>{event.description}</div>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: AGENDA LIST SUMMARY */}
+          {viewMode === "agenda" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxWidth: "800px" }}>
+              {events.length === 0 ? (
+                <div style={{ color: "#9aa0a6", padding: "24px" }}>No scheduled upcoming pipeline invites.</div>
+              ) : (
+                events.map(event => (
+                  <div key={event.id} style={{ display: "flex", background: "#1f1f1f", padding: "16px", borderRadius: "8px", gap: "20px", alignItems: "center", border: "1px solid #282828" }}>
+                    <div style={{ minWidth: "100px" }}>
+                      <div style={{ fontSize: "12px", color: "#9aa0a6" }}>{event.start ? new Date(event.start).toLocaleDateString([], { weekday: "short" }) : ""}</div>
+                      <div style={{ fontSize: "18px", fontWeight: "bold" }}>{event.start ? new Date(event.start).toLocaleDateString([], { day: "numeric", month: "short" }) : ""}</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "15px", fontWeight: "600", color: "#fff" }}>{event.summary}</div>
+                      <div style={{ display: "flex", gap: "16px", marginTop: "4px", fontSize: "12px", color: "#9aa0a6" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><Clock size={12} /> {event.start ? new Date(event.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                        {event.location && <span style={{ display: "flex", alignItems: "center", gap: "4px" }}><MapPin size={12} /> {event.location}</span>}
+                      </div>
+                    </div>
+                  </div>
+                )
               ))}
             </div>
-          );
-        })}
+          )}
+
+        </div>
       </div>
 
-      {selectedEvent && (
-        <div
-          className="compose-overlay"
-          style={{ alignItems: "center", justifyContent: "center" }}
-          onClick={() => setSelectedEventId(null)}
-        >
-          <div
-            className="compose-panel"
-            style={{ width: 480, maxHeight: "60vh" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="compose-header">
-              <span className="compose-title">{selectedEvent.summary || "Event"}</span>
-              <button
-                type="button"
-                className="btn-icon"
-                onClick={() => setSelectedEventId(null)}
-              >
-                ✕
-              </button>
+      {/* MODAL WINDOW VIEW OVERLAY FOR FAST INDEPENDENT SCHEDULING */}
+      {showScheduleModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyValues: "center", zIndex: 1000, justifyContent: "center" }}>
+          <div style={{ background: "#1f1f1f", border: "1px solid #3c4043", borderRadius: "8px", width: "480px", display: "flex", flexDirection: "column", boxShadow: "0px 12px 24px rgba(0,0,0,0.5)" }}>
+            <div style={{ display: "flex", justifyValues: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #282828", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "16px", fontWeight: "bold" }}>Schedule New Event</span>
+              <X size={18} style={{ cursor: "pointer", color: "#9aa0a6" }} onClick={() => setShowScheduleModal(false)} />
             </div>
-            <div style={{ padding: "16px 18px", fontSize: 13, color: "var(--text-secondary)" }}>
-              {selectedEvent.start && (
-                <p style={{ marginBottom: 8 }}>
-                  {formatEventWhen(selectedEvent.start, selectedEvent.end)}
-                </p>
-              )}
-              {selectedEvent.location && (
-                <p style={{ marginBottom: 8 }}>📍 {selectedEvent.location}</p>
-              )}
-              {selectedEvent.description && (
-                <p style={{ marginBottom: 8 }}>{selectedEvent.description}</p>
-              )}
-              {selectedEvent.htmlLink && (
-                <a
-                  href={selectedEvent.htmlLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "var(--accent-blue)" }}
-                >
-                  Open in Google Calendar
-                </a>
-              )}
+            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <input type="text" placeholder="Add title" value={summary} onChange={e => setSummary(e.target.value)} style={{ width: "100%", background: "transparent", border: "none", borderBottom: "1px solid #3c4043", color: "#fff", fontSize: "18px", padding: "6px 0", outline: "none" }} />
+              
+              <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: "11px", color: "#9aa0a6" }}>Start Date & Time</label>
+                  <input type="datetime-local" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ width: "100%", background: "#282828", border: "1px solid #3c4043", color: "#fff", padding: "6px", borderRadius: "4px", marginTop: "4px" }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: "11px", color: "#9aa0a6" }}>End Date & Time</label>
+                  <input type="datetime-local" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ width: "100%", background: "#282828", border: "1px solid #3c4043", color: "#fff", padding: "6px", borderRadius: "4px", marginTop: "4px" }} />
+                </div>
+              </div>
+
+              <input type="text" placeholder="Add Location" value={location} onChange={e => setLocation(e.target.value)} style={{ width: "100%", background: "#282828", border: "1px solid #3c4043", borderRadius: "4px", color: "#fff", padding: "8px", fontSize: "13px", marginTop: "4px" }} />
+              <input type="text" placeholder="Add Guests (comma separated emails)" value={attendees} onChange={e => setAttendees(e.target.value)} style={{ width: "100%", background: "#282828", border: "1px solid #3c4043", borderRadius: "4px", color: "#fff", padding: "8px", fontSize: "13px" }} />
+              <textarea placeholder="Add Description" value={description} onChange={e => setDescription(e.target.value)} style={{ width: "100%", height: "80px", background: "#282828", border: "1px solid #3c4043", borderRadius: "4px", color: "#fff", padding: "8px", fontSize: "13px", resize: "none" }} />
+            </div>
+            <div style={{ padding: "16px", display: "flex", justifyValues: "flex-end", gap: "10px", background: "#161616", borderRadius: "0 0 8px 8px", justifyContent: "flex-end" }}>
+              <button onClick={() => setShowScheduleModal(false)} style={{ background: "transparent", border: "none", color: "#1a73e8", cursor: "pointer", fontWeight: "500", padding: "6px 12px" }}>Cancel</button>
+              <button 
+                onClick={() => {
+                  const emailsArr = attendees.split(",").map(e => e.trim()).filter(Boolean);
+                  sendInvite.mutate({
+                    summary,
+                    description,
+                    location,
+                    start: new Date(startTime).toISOString(),
+                    end: new Date(endTime).toISOString(),
+                    attendees: emailsArr
+                  });
+                }}
+                disabled={sendInvite.isPending || !summary || !startTime || !endTime}
+                style={{ background: "#1a73e8", color: "#fff", border: "none", borderRadius: "4px", padding: "6px 16px", cursor: "pointer", fontWeight: "500" }}
+              >
+                {sendInvite.isPending ? "Inviting..." : "Save & Send"}
+              </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -55,6 +55,7 @@ export default function Home() {
   const oauthStatus = api.auth.getGoogleOAuthStatus.useQuery(undefined, {
     enabled: !!meData?.user,
   });
+  const utils = api.useUtils();
 
   const signup = api.auth.signup.useMutation({
     onSuccess: (data) => {
@@ -106,9 +107,10 @@ export default function Home() {
       if (success) {
         setConnectionSuccess(decodeURIComponent(success));
         window.history.replaceState({}, document.title, window.location.pathname);
+        void utils.auth.getGoogleOAuthStatus.invalidate();
       }
     }
-  }, []);
+  }, [utils.auth.getGoogleOAuthStatus]);
 
   const handleLogout = () => {
     window.localStorage.removeItem("userId");
@@ -136,7 +138,11 @@ export default function Home() {
       },
       {
         onSuccess: (data) => {
-          window.location.href = data.url;
+          if (data.url) {
+            window.location.href = data.url;
+          } else {
+            setAuthError(data.error ?? "Failed to start Google sign-in");
+          }
         },
         onError: (err) => {
           setAuthError(err.message);
@@ -153,7 +159,11 @@ export default function Home() {
       },
       {
         onSuccess: (data) => {
-          window.location.href = data.url;
+          if (data.url) {
+            window.location.href = data.url;
+          } else {
+            setOauthError("Failed to start Google authorization. Please try again.");
+          }
         },
         onError: (err) => {
           setOauthError(err.message);

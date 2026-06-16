@@ -5,7 +5,7 @@ import { setupCorsair } from "corsair/setup";
 
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { users, corsairIntegrations, corsairAccounts } from "@/server/db/schema";
-import { corsair } from "@/server/corsair";
+import { corsair, ensureCorsairConfigured } from "@/server/corsair";
 
 function hashPassword(password: string, salt: string): string {
   return crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
@@ -214,6 +214,8 @@ export const authRouter = createTRPCRouter({
         throw new Error("User not found");
       }
 
+      await ensureCorsairConfigured();
+
       const tenantId = user[0].email;
       const { generateOAuthUrl } = await import("corsair/oauth");
       const { url } = await generateOAuthUrl(corsair, input.pluginId, {
@@ -232,6 +234,7 @@ export const authRouter = createTRPCRouter({
     )
     .mutation(async ({ input }) => {
       try {
+        await ensureCorsairConfigured();
         const tempId = `temp_${crypto.randomUUID()}`;
         const { generateOAuthUrl } = await import("corsair/oauth");
         const { url } = await generateOAuthUrl(corsair, "gmail", {
@@ -245,7 +248,9 @@ export const authRouter = createTRPCRouter({
           url: null,
           error: msg.includes("client_id not configured")
             ? "Google OAuth Credentials are not configured. Please sign up or log in using credentials first, then add them in the OAuth Settings panel."
-            : msg,
+            : msg.includes("unable to authenticate data")
+              ? "Corsair encryption key (CORSAIR_KEK) does not match stored credentials. Reset corsair tables or restore the original CORSAIR_KEK from .env."
+              : msg,
         };
       }
     }),

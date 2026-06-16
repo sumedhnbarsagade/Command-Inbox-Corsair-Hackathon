@@ -3,7 +3,7 @@ import { processOAuthCallback } from "corsair/oauth";
 import crypto from "crypto";
 import { and, eq } from "drizzle-orm";
 
-import { corsair } from "@/server/corsair";
+import { corsair, ensureCorsairConfigured } from "@/server/corsair";
 import { db } from "@/server/db";
 import { users, corsairAccounts } from "@/server/db/schema";
 
@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    await ensureCorsairConfigured();
+
     const redirectUri = new URL("/api/auth/callback", request.url).toString();
 
     const result = await processOAuthCallback(corsair, {

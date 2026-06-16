@@ -1,9 +1,11 @@
 import { eq } from "drizzle-orm";
-import { corsair } from "@/server/corsair";
+import { corsair, ensureCorsairConfigured } from "@/server/corsair";
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
 
 export async function getTenant(userId?: string | null) {
+  await ensureCorsairConfigured();
+
   let tenantId = process.env.TENANT_ID ?? "dev";
 
   if (userId) {

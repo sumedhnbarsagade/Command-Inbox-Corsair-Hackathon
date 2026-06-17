@@ -92,7 +92,7 @@ export function CalendarPanel() {
         weekEnd: searchRange.weekEnd,
       });
     }
-  }, [searchRange.weekStart, searchRange.weekEnd, isLoading, events.length, refreshEvents.isPending, refreshEvents.isError]);
+  }, [searchRange.weekStart, searchRange.weekEnd, isLoading, events.length, refreshEvents]);
 
   // Date Calculation Core Grid Mappers
   const monthDays = useMemo(() => {
@@ -101,9 +101,12 @@ export function CalendarPanel() {
     const firstDayIndex = new Date(year, month, 1).getDay();
     const totalDays = new Date(year, month + 1, 0).getDate();
     
-    const blankCells = Array(firstDayIndex).fill(null);
+    const blankCells: (Date | null)[] = Array.from(
+      { length: firstDayIndex },
+      () => null,
+    );
     const validCells = Array.from({ length: totalDays }, (_, i) => new Date(year, month, i + 1));
-    return [...blankCells, ...validCells];
+    return [...blankCells, ...validCells] satisfies (Date | null)[];
   }, [currentDate]);
 
   const weekDays = useMemo(() => {
@@ -152,7 +155,7 @@ export function CalendarPanel() {
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#111", color: "#e8eaed", fontFamily: "Roboto, sans-serif" }}>
+    <div className="calendar-pane" style={{ display: "flex", height: "100vh", background: "#111", color: "#e8eaed", fontFamily: "Roboto, sans-serif" }}>
       
       {/* SIDEBAR: Google Mini Picker Panel & Actions */}
       <div style={{ width: "256px", background: "#1f1f1f", borderRight: "1px solid #282828", padding: "16px", display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -180,7 +183,7 @@ export function CalendarPanel() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
         
         {/* Top Control Bar Header */}
-        <div style={{ height: "64px", borderBottom: "1px solid #282828", padding: "0 24px", display: "flex", alignItems: "center", justifyValues: "space-between", background: "#1f1f1f" }}>
+        <div style={{ height: "64px", borderBottom: "1px solid #282828", padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#1f1f1f" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <span style={{ fontSize: "22px", color: "#fff", fontWeight: "400" }}>Calendar</span>
             <button onClick={() => setCurrentDate(new Date())} style={{ background: "transparent", border: "1px solid #5f6368", color: "#e8eaed", borderRadius: "4px", padding: "6px 12px", fontSize: "14px", cursor: "pointer" }}>Today</button>
@@ -217,7 +220,7 @@ export function CalendarPanel() {
                   <div key={idx} style={{ borderRight: "1px solid #282828", borderBottom: "1px solid #282828", minHeight: "100px", padding: "6px", background: date ? "transparent" : "#161616" }}>
                     {date && (
                       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
-                        <span style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", justifyValues: "center", borderRadius: "50%", background: isToday(date) ? "#1a73e8" : "transparent", color: isToday(date) ? "#fff" : "#9aa0a6", fontSize: "12px", fontWeight: "600", display: "flex", justifyContent: "center" }}>
+                        <span style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", borderRadius: "50%", background: isToday(date) ? "#1a73e8" : "transparent", color: isToday(date) ? "#fff" : "#9aa0a6", fontSize: "12px", fontWeight: "600", justifyContent: "center" }}>
                           {date.getDate()}
                         </span>
                       </div>
@@ -317,9 +320,9 @@ export function CalendarPanel() {
 
       {/* MODAL WINDOW VIEW OVERLAY FOR FAST INDEPENDENT SCHEDULING */}
       {showScheduleModal && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyValues: "center", zIndex: 1000, justifyContent: "center" }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", zIndex: 1000, justifyContent: "center" }}>
           <div style={{ background: "#1f1f1f", border: "1px solid #3c4043", borderRadius: "8px", width: "480px", display: "flex", flexDirection: "column", boxShadow: "0px 12px 24px rgba(0,0,0,0.5)" }}>
-            <div style={{ display: "flex", justifyValues: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #282828", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "16px", borderBottom: "1px solid #282828", justifyContent: "space-between" }}>
               <span style={{ fontSize: "16px", fontWeight: "bold" }}>Schedule New Event</span>
               <X size={18} style={{ cursor: "pointer", color: "#9aa0a6" }} onClick={() => setShowScheduleModal(false)} />
             </div>
@@ -341,7 +344,7 @@ export function CalendarPanel() {
               <input type="text" placeholder="Add Guests (comma separated emails)" value={attendees} onChange={e => setAttendees(e.target.value)} style={{ width: "100%", background: "#282828", border: "1px solid #3c4043", borderRadius: "4px", color: "#fff", padding: "8px", fontSize: "13px" }} />
               <textarea placeholder="Add Description" value={description} onChange={e => setDescription(e.target.value)} style={{ width: "100%", height: "80px", background: "#282828", border: "1px solid #3c4043", borderRadius: "4px", color: "#fff", padding: "8px", fontSize: "13px", resize: "none" }} />
             </div>
-            <div style={{ padding: "16px", display: "flex", justifyValues: "flex-end", gap: "10px", background: "#161616", borderRadius: "0 0 8px 8px", justifyContent: "flex-end" }}>
+            <div style={{ padding: "16px", display: "flex", gap: "10px", background: "#161616", borderRadius: "0 0 8px 8px", justifyContent: "flex-end" }}>
               <button onClick={() => setShowScheduleModal(false)} style={{ background: "transparent", border: "none", color: "#1a73e8", cursor: "pointer", fontWeight: "500", padding: "6px 12px" }}>Cancel</button>
               <button 
                 onClick={() => {

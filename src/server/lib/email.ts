@@ -1,9 +1,55 @@
+import crypto from "crypto";
+
 export function encodeRawEmail(opts: {
   to: string;
   subject: string;
   body: string;
   from?: string;
+  attachments?: {
+    filename: string;
+    mimeType: string;
+    data: string;
+  }[];
 }): string {
+  const attachments = opts.attachments ?? [];
+
+  if (attachments.length > 0) {
+    const boundary = `corsair_${crypto.randomUUID().replace(/-/g, "")}`;
+    const lines = [
+      ...(opts.from ? [`From: ${opts.from}`] : []),
+      `To: ${opts.to}`,
+      `Subject: ${opts.subject}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: 7bit",
+      "",
+      opts.body,
+    ];
+
+    for (const attachment of attachments) {
+      const safeFilename = attachment.filename.replace(/"/g, "");
+      const base64 = attachment.data.replace(/^data:[^;]+;base64,/, "");
+
+      lines.push(
+        `--${boundary}`,
+        `Content-Type: ${attachment.mimeType || "application/octet-stream"}; name="${safeFilename}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${safeFilename}"`,
+        "",
+        base64.replace(/(.{76})/g, "$1\r\n").trim(),
+      );
+    }
+
+    lines.push(`--${boundary}--`);
+
+    const message = lines.join("\r\n");
+    const base64 = Buffer.from(message, "utf-8").toString("base64");
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
   const lines = [
     ...(opts.from ? [`From: ${opts.from}`] : []),
     `To: ${opts.to}`,

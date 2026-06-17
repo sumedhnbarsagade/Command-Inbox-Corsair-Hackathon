@@ -12,6 +12,7 @@ import {
 import { GmailPanel } from "@/app/_components/gmail-panel";
 
 type Tab = "gmail" | "calendar";
+type ThemeMode = "light" | "dark";
 
 const SHORTCUTS = [
   { action: "Command menu", keys: ["⌘", "K"] },
@@ -32,6 +33,7 @@ export default function Home() {
   const [showChat, setShowChat] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showHints, setShowHints] = useState(true);
+  const [theme, setTheme] = useState<ThemeMode>("dark");
 
   // Authentication & Integration State
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
@@ -56,6 +58,22 @@ export default function Home() {
     enabled: !!meData?.user,
   });
   const utils = api.useUtils();
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem("theme");
+    const nextTheme = storedTheme === "light" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((current) => {
+      const nextTheme = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem("theme", nextTheme);
+      document.documentElement.dataset.theme = nextTheme;
+      return nextTheme;
+    });
+  };
 
   const signup = api.auth.signup.useMutation({
     onSuccess: (data) => {
@@ -809,6 +827,14 @@ export default function Home() {
               title="Keyboard shortcuts"
             >
               ?
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={toggleTheme}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
             </button>
             <button
               type="button"

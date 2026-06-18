@@ -470,8 +470,8 @@ export default function Home() {
         <div className="auth-card">
           <div className="auth-header">
             <div className="auth-logo">⚡</div>
-            <h1 className="auth-title">Superhuman</h1>
-            <p className="auth-subtitle">The fastest workspace integration layer</p>
+            <h1 className="auth-title">CommandFlow</h1>
+            <p className="auth-subtitle">The fastest email and calendar experience</p>
           </div>
 
           {authError && <div className="auth-error">{authError}</div>}
@@ -550,7 +550,7 @@ export default function Home() {
           <div className="auth-toggle">
             {authMode === "login" ? (
               <>
-                New to Superhuman?{" "}
+                New to CommandFlow?{" "}
                 <span
                   className="auth-toggle-link"
                   onClick={() => setAuthMode("signup")}
@@ -650,7 +650,7 @@ export default function Home() {
             Connect {isGmail ? "Gmail" : "Google Calendar"}
           </h2>
           <p className="onboarding-desc">
-            To view and manage your {isGmail ? "emails" : "calendar events"} directly inside Superhuman, link your Google account. Your data will be synced and cached locally.
+            To view and manage your {isGmail ? "emails" : "calendar events"} directly inside CommandFlow, link your Google account. Your data will be synced and cached locally.
           </p>
           <button
             type="button"

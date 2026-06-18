@@ -19,9 +19,6 @@ import {
   Clock,
   Send,
   AlertCircle,
-  Video,
-  MessageSquare,
-  Calendar,
   Paperclip
 } from "lucide-react";
 
@@ -294,47 +291,48 @@ export function GmailPanel() {
 
   const composeModal = showCompose && (
     <div className="compose-overlay" style={{ position: "fixed", bottom: 0, right: 30, zIndex: 1000, background: "transparent" }}>
-      <div className="compose-panel" style={{ width: "550px", height: "450px", boxShadow: "0px 12px 24px rgba(0,0,0,0.3)", borderRadius: "8px 8px 0 0", display: "flex", flexDirection: "column", background: "#202124", border: "1px solid #3c4043" }}>
-        <div className="compose-header" style={{ background: "#2f3136", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: "8px 8px 0 0" }}>
-          <span className="compose-title" style={{ fontSize: "14px", fontWeight: "600", color: "#e8eaed" }}>New Message</span>
-          <button type="button" className="btn-icon" onClick={resetCompose} style={{ color: "#9aa0a6", background: "transparent", border: "none", cursor: "pointer" }}>
+      <div className="compose-panel" style={{ width: "550px", height: "450px", borderRadius: "8px 8px 0 0" }}>
+        <div className="compose-header">
+          <span className="compose-title">New Message</span>
+          <button type="button" className="btn-icon" onClick={resetCompose}>
             <X size={16} />
           </button>
         </div>
         <div style={{ padding: "0 16px" }}>
-          <div className="compose-field" style={{ borderBottom: "1px solid #3c4043", padding: "8px 0", display: "flex" }}>
-            <span style={{ color: "#9aa0a6", width: "60px", fontSize: "14px" }}>To</span>
-            <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="recipients" style={{ background: "transparent", border: "none", outline: "none", color: "#fff", flex: 1, fontSize: "14px" }} />
+          <div className="compose-field">
+            <span className="compose-field-label">To</span>
+            <input type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="recipients" />
           </div>
-          <div className="compose-field" style={{ borderBottom: "1px solid #3c4043", padding: "8px 0", display: "flex" }}>
-            <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" style={{ background: "transparent", border: "none", outline: "none", color: "#fff", flex: 1, fontSize: "14px" }} />
+          <div className="compose-field">
+            <span className="compose-field-label" style={{ width: 0, overflow: "hidden" }} />
+            <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" />
           </div>
         </div>
-        <div className="compose-body" style={{ flex: 1, padding: "16px" }}>
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Body content" style={{ background: "transparent", border: "none", outline: "none", color: "#fff", width: "100%", height: "100%", resize: "none", fontSize: "14px", lineHeight: "1.5" }} />
+        <div className="compose-body">
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Body content" />
         </div>
         {attachments.length > 0 && (
           <div style={{ padding: "0 16px 12px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {attachments.map((file) => (
-              <div key={`${file.filename}-${file.size}`} style={{ display: "inline-flex", alignItems: "center", gap: "8px", maxWidth: "240px", padding: "6px 10px", borderRadius: "16px", background: "#303134", color: "#e8eaed", fontSize: "12px" }}>
+              <div key={`${file.filename}-${file.size}`} style={{ display: "inline-flex", alignItems: "center", gap: "8px", maxWidth: "240px", padding: "6px 10px", borderRadius: "16px", background: "var(--bg-hover)", color: "var(--text-primary)", fontSize: "12px" }}>
                 <Paperclip size={13} />
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.filename}</span>
-                <button type="button" aria-label={`Remove ${file.filename}`} onClick={() => removeAttachment(file.filename)} style={{ border: "none", background: "transparent", color: "#9aa0a6", cursor: "pointer", padding: 0 }}>
+                <button type="button" aria-label={`Remove ${file.filename}`} onClick={() => removeAttachment(file.filename)} className="btn-icon" style={{ padding: 0 }}>
                   <X size={13} />
                 </button>
               </div>
             ))}
           </div>
         )}
-        <div className="compose-footer" style={{ padding: "16px", display: "flex", gap: "12px", alignItems: "center", background: "#2f3136" }}>
-          <button type="button" className="btn btn-primary" onClick={() => sendEmail.mutate(composePayload)} disabled={sendEmail.isPending || !to || !subject || !body} style={{ background: "#1a73e8", color: "white", borderRadius: "20px", padding: "6px 20px", border: "none", cursor: "pointer" }}>
+        <div className="compose-footer">
+          <button type="button" className="btn btn-primary" onClick={() => sendEmail.mutate(composePayload)} disabled={sendEmail.isPending || !to || !subject || !body} style={{ borderRadius: "20px" }}>
             {sendEmail.isPending ? "Sending…" : "Send"}
           </button>
-          <button type="button" className="btn btn-secondary" onClick={() => createDraft.mutate(composePayload)} disabled={createDraft.isPending || !to || !subject || !body} style={{ borderRadius: "20px", padding: "6px 16px", cursor: "pointer" }}>
+          <button type="button" className="btn btn-secondary" onClick={() => createDraft.mutate(composePayload)} disabled={createDraft.isPending || !to || !subject || !body} style={{ borderRadius: "20px" }}>
             Save Draft
           </button>
           <input ref={attachmentInputRef} type="file" multiple onChange={handleAttachmentChange} style={{ display: "none" }} />
-          <button type="button" aria-label="Attach files" title="Attach files" onClick={() => attachmentInputRef.current?.click()} style={{ border: "none", background: "transparent", color: "#9aa0a6", cursor: "pointer", display: "inline-flex", alignItems: "center", padding: "6px" }}>
+          <button type="button" aria-label="Attach files" title="Attach files" onClick={() => attachmentInputRef.current?.click()} className="btn-icon">
             <Paperclip size={18} />
           </button>
         </div>
@@ -342,12 +340,15 @@ export function GmailPanel() {
     </div>
   );
 
+  const navBtnClass = (active: boolean) =>
+    `gmail-sidebar-nav-btn${active ? " active" : ""}`;
+
   return (
-    <div className="email-pane" style={{ display: "flex", flex: 1, overflow: "hidden", background: "var(--bg-base)", color: "var(--text-primary)" }}>
+    <div className="email-pane">
       {composeModal}
 
       {/* Folder navigation */}
-      <div style={{ width: "240px", background: "var(--bg-surface)", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", borderRight: "1px solid var(--border-subtle)" }}>
+      <div style={{ width: "240px", background: "var(--bg-surface)", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", borderRight: "1px solid var(--border-subtle)", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "4px 8px", marginBottom: "16px" }}>
           <Menu size={18} style={{ cursor: "pointer", color: "var(--text-muted)" }} />
           <span style={{ fontSize: "20px", fontWeight: "500", color: "var(--text-primary)" }}>Gmail</span>
@@ -361,96 +362,68 @@ export function GmailPanel() {
         </button>
         
         <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "2px" }}>
-          <button 
-            onClick={() => { setView("inbox"); setSelectedId(null); }} 
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "inbox" ? "#004a77" : "transparent", color: view === "inbox" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
-          >
+          <button type="button" className={navBtnClass(view === "inbox")} onClick={() => { setView("inbox"); setSelectedId(null); }}>
             <Inbox size={16} /> <span style={{ flex: 1 }}>Inbox</span>
           </button>
-
-          <button 
-            onClick={() => { setView("starred"); setSelectedId(null); }} 
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "starred" ? "#004a77" : "transparent", color: view === "starred" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
-          >
+          <button type="button" className={navBtnClass(view === "starred")} onClick={() => { setView("starred"); setSelectedId(null); }}>
             <Star size={16} /> <span style={{ flex: 1 }}>Starred</span>
           </button>
-
-          <button 
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: "transparent", color: "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px", opacity: 0.6 }}
-          >
+          <button type="button" className="gmail-sidebar-nav-btn" style={{ opacity: 0.6 }} disabled>
             <Clock size={16} /> <span style={{ flex: 1 }}>Snoozed</span>
           </button>
-
-          <button 
-            onClick={() => { setView("sent"); setSelectedId(null); }}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "sent" ? "#004a77" : "transparent", color: view === "sent" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
-          >
+          <button type="button" className={navBtnClass(view === "sent")} onClick={() => { setView("sent"); setSelectedId(null); }}>
             <Send size={16} /> <span style={{ flex: 1 }}>Sent</span>
           </button>
-
-          <button 
-            onClick={() => { setView("drafts"); setSelectedId(null); }} 
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "8px 16px", borderRadius: "0 20px 20px 0", border: "none", background: view === "drafts" ? "#004a77" : "transparent", color: view === "drafts" ? "#c2e7ff" : "#e8eaed", textAlign: "left", cursor: "pointer", fontSize: "14px" }}
-          >
+          <button type="button" className={navBtnClass(view === "drafts")} onClick={() => { setView("drafts"); setSelectedId(null); }}>
             <FileText size={16} /> <span style={{ flex: 1 }}>Drafts</span> <span style={{ fontSize: "12px", opacity: 0.7 }}>{drafts.data?.length ?? 0}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Mail Dashboard Splitting Layer */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#111" }}>
-        
-        {/* Universal Gmail Top Bar Search */}
-        <div style={{ height: "64px", borderBottom: "1px solid #282828", display: "flex", alignItems: "center", padding: "0 16px", background: "#1f1f1f" }}>
-          <div style={{ display: "flex", alignItems: "center", background: "#3c4043", borderRadius: "24px", padding: "6px 16px", width: "600px", gap: "12px" }}>
-            <Search size={18} style={{ color: "#9aa0a6" }} />
-            <input 
-              type="text" 
-              placeholder="Search in mail" 
+      <div className="gmail-main">
+        <div className="gmail-toolbar">
+          <div className="gmail-search-box">
+            <Search size={18} className="gmail-icon-muted" />
+            <input
+              type="text"
+              className="gmail-search-input"
+              placeholder="Search in mail"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") setActiveSearch(search); }}
-              style={{ background: "transparent", border: "none", outline: "none", color: "#fff", width: "100%", fontSize: "15px" }}
             />
-            {search && <X size={16} style={{ color: "#9aa0a6", cursor: "pointer" }} onClick={() => { setSearch(""); setActiveSearch(""); }} />}
+            {search && <X size={16} className="gmail-icon-muted" onClick={() => { setSearch(""); setActiveSearch(""); }} />}
           </div>
           <div style={{ flex: 1 }} />
-          <button onClick={() => refreshInbox.mutate()} disabled={refreshInbox.isPending} style={{ background: "transparent", border: "none", color: "#9aa0a6", cursor: "pointer", padding: "8px" }}>
+          <button type="button" onClick={() => refreshInbox.mutate()} disabled={refreshInbox.isPending} className="btn-icon">
             <RefreshCw size={18} className={refreshInbox.isPending ? "animate-spin" : ""} />
           </button>
         </div>
 
-        {/* Action Controls Headers Split-Pane Workspace */}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-          
-          {/* COLUMN 3: Compact Thread Feed Grid */}
-          <div style={{ width: selectedId ? "420px" : "100%", borderRight: selectedId ? "1px solid #282828" : "none", display: "flex", flexDirection: "column", background: "#111" }}>
-            
-            {/* Context Toolbars */}
-            <div style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #282828", justifyContent: "space-between", background: "#161616", minHeight: "46px" }}>
+          <div className="gmail-list-pane" style={{ width: selectedId ? "420px" : "100%", borderRight: selectedId ? undefined : "none" }}>
+            <div className="gmail-list-toolbar">
               <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                <div onClick={toggleSelectAll} style={{ cursor: "pointer", color: "#9aa0a6", display: "flex", alignItems: "center" }}>
-                  {isAllSelected ? <CheckSquare size={16} style={{ color: "#1a73e8" }} /> : <Square size={16} />}
+                <div onClick={toggleSelectAll} className="gmail-icon-muted" style={{ display: "flex", alignItems: "center" }}>
+                  {isAllSelected ? <CheckSquare size={16} className="gmail-icon-accent" /> : <Square size={16} />}
                 </div>
-                <Archive size={16} className="muted" style={{ cursor: "pointer" }} />
-                <Trash2 size={16} className="muted" style={{ cursor: "pointer" }} />
-                <Mail size={16} className="muted" style={{ cursor: "pointer" }} />
-                <MoreVertical size={16} className="muted" style={{ cursor: "pointer" }} />
+                <Archive size={16} className="gmail-icon-muted" />
+                <Trash2 size={16} className="gmail-icon-muted" />
+                <Mail size={16} className="gmail-icon-muted" />
+                <MoreVertical size={16} className="gmail-icon-muted" />
               </div>
-              
               {view === "inbox" && (
                 <div style={{ display: "flex", gap: "4px" }}>
-                  <button onClick={() => setFilter("all")} style={{ border: "none", background: filter === "all" ? "#303134" : "transparent", color: "#fff", padding: "4px 10px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}>All</button>
-                  <button onClick={() => setFilter("high-priority")} style={{ border: "none", background: filter === "high-priority" ? "#303134" : "transparent", color: "#fff", padding: "4px 10px", borderRadius: "4px", fontSize: "12px", cursor: "pointer" }}>🔥 Focused</button>
+                  <button type="button" className={`gmail-filter-btn${filter === "all" ? " active" : ""}`} onClick={() => setFilter("all")}>All</button>
+                  <button type="button" className={`gmail-filter-btn${filter === "high-priority" ? " active" : ""}`} onClick={() => setFilter("high-priority")}>🔥 Focused</button>
                 </div>
               )}
             </div>
 
-            {/* Email Rows Loop Grid */}
             <div style={{ flex: 1, overflowY: "auto" }}>
-              {emails.isLoading && <div style={{ padding: "24px", textAlign: "center", color: "#9aa0a6" }}>Loading Workspace Feed...</div>}
+              {emails.isLoading && <div style={{ padding: "24px", textAlign: "center", color: "var(--text-muted)" }}>Loading Workspace Feed...</div>}
               {emailList.length === 0 && !emails.isLoading && (
-                <div style={{ padding: "40px 24px", textAlign: "center", color: "#9aa0a6" }}>
+                <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--text-muted)" }}>
                   <AlertCircle size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
                   <p style={{ fontSize: "14px" }}>No conversations inside active view.</p>
                 </div>
@@ -458,7 +431,7 @@ export function GmailPanel() {
 
               {view === "drafts" ? (
                 drafts.data?.map((draft) => (
-                  <div key={draft.id} className="email-row" style={{ padding: "12px", borderBottom: "1px solid #202020" }}>
+                  <div key={draft.id} className="email-row">
                     <div className="email-row-top">
                       <span className="email-sender">Draft {draft.id.slice(0, 8)}</span>
                     </div>
@@ -466,7 +439,7 @@ export function GmailPanel() {
                       <button
                         type="button"
                         className="btn btn-secondary"
-                        style={{ padding: "4px 10px", fontSize: "12px", cursor: "pointer" }}
+                        style={{ padding: "4px 10px", fontSize: "12px" }}
                         onClick={() => sendDraft.mutate({ draftId: draft.id })}
                         disabled={sendDraft.isPending}
                       >
@@ -486,42 +459,33 @@ export function GmailPanel() {
                     <div
                       key={email.id}
                       onClick={() => { setSelectedId(email.id); }}
-                      style={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        padding: "10px 16px",
-                        borderBottom: "1px solid #202020",
-                        background: isSelected ? "#2a3b47" : isChecked ? "#222" : "#111",
-                        cursor: "pointer",
-                        position: "relative",
-                        gap: "12px"
-                      }}
+                      className={`gmail-thread-row${isSelected ? " selected" : ""}${isChecked ? " checked" : ""}`}
                     >
                       <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "2px" }}>
-                        <div onClick={(e) => toggleSelectRow(email.id, e)} style={{ color: "#5f6368" }}>
-                          {isChecked ? <CheckSquare size={15} style={{ color: "#1a73e8" }} /> : <Square size={15} />}
+                        <div onClick={(e) => toggleSelectRow(email.id, e)} className="gmail-icon-muted">
+                          {isChecked ? <CheckSquare size={15} className="gmail-icon-accent" /> : <Square size={15} />}
                         </div>
-                        <Star 
-                          size={15} 
-                          onClick={(e) => toggleStar(email.id, e)} 
-                          fill={isStarred ? "#fbbc04" : "none"} 
-                          color={isStarred ? "#fbbc04" : "#5f6368"} 
+                        <Star
+                          size={15}
+                          onClick={(e) => toggleStar(email.id, e)}
+                          fill={isStarred ? "var(--accent-yellow)" : "none"}
+                          color={isStarred ? "var(--accent-yellow)" : "var(--text-muted)"}
                         />
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "2px" }}>
-                          <span style={{ fontSize: "14px", fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: selectedId ? "160px" : "240px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: selectedId ? "160px" : "240px" }}>
                             {sender.name || sender.email || "Unknown"}
                           </span>
-                          <span style={{ fontSize: "11px", color: "#9aa0a6" }}>
+                          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
                             {email.date ? formatMessageDate(email.date) : ""}
                           </span>
                         </div>
-                        <div style={{ fontSize: "13px", color: "#e8eaed", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontSize: "13px", color: "var(--text-primary)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {email.subject || "(no subject)"}
                         </div>
-                        <div style={{ fontSize: "12px", color: "#9aa0a6", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        <div style={{ fontSize: "12px", color: "var(--text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                           {email.snippet}
                         </div>
                       </div>
@@ -532,51 +496,47 @@ export function GmailPanel() {
             </div>
           </div>
 
-          {/* COLUMN 4: Expanded Detailed Reading Window Frame */}
           {selectedId && view !== "drafts" && (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#161616" }}>
+            <div className="gmail-detail-pane">
               {selectedEmail.isLoading ? (
                 <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><span className="spinner" /></div>
               ) : selectedEmail.data ? (
                 <>
-                  {/* Top Action Ribbon */}
-                  <div style={{ display: "flex", alignItems: "center", padding: "8px 16px", borderBottom: "1px solid #282828", background: "#1f1f1f", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", gap: "16px", color: "#9aa0a6" }}>
-                      <Archive size={16} style={{ cursor: "pointer" }} onClick={() => setSelectedId(null)} />
-                      <Trash2 size={16} style={{ cursor: "pointer" }} onClick={() => setSelectedId(null)} />
-                      <Mail size={16} style={{ cursor: "pointer" }} onClick={() => setSelectedId(null)} />
+                  <div className="gmail-detail-toolbar">
+                    <div style={{ display: "flex", gap: "16px" }} className="gmail-icon-muted">
+                      <Archive size={16} onClick={() => setSelectedId(null)} />
+                      <Trash2 size={16} onClick={() => setSelectedId(null)} />
+                      <Mail size={16} onClick={() => setSelectedId(null)} />
                     </div>
                     <div style={{ display: "flex", gap: "8px" }}>
-                      <button type="button" className="btn btn-secondary" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", padding: "4px 12px", cursor: "pointer" }} onClick={openReply}>
+                      <button type="button" className="btn btn-secondary" style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", padding: "4px 12px" }} onClick={openReply}>
                         <CornerUpLeft size={14} /> Reply
                       </button>
-                      <button type="button" className="btn btn-ghost" style={{ padding: "4px", cursor: "pointer" }} onClick={() => setSelectedId(null)}>
+                      <button type="button" className="btn btn-ghost" style={{ padding: "4px" }} onClick={() => setSelectedId(null)}>
                         <X size={16} />
                       </button>
                     </div>
                   </div>
 
-                  {/* Body Scroller Metadata view content block */}
                   <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
-                    <div style={{ fontSize: "20px", fontWeight: "400", color: "#fff", marginBottom: "20px", lineHeight: "1.3" }}>
+                    <div style={{ fontSize: "20px", fontWeight: 400, color: "var(--text-primary)", marginBottom: "20px", lineHeight: 1.3 }}>
                       {selectedEmail.data.subject || "(no subject)"}
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px", borderBottom: "1px solid #282828", paddingBottom: "16px" }}>
-                      <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: "#3c4043", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold", fontSize: "16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "24px", borderBottom: "1px solid var(--border-subtle)", paddingBottom: "16px" }}>
+                      <div className="gmail-avatar">
                         {(parseEmailAddress(selectedEmail.data.from).name || "?")[0]?.toUpperCase()}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                          <span style={{ fontWeight: 600, fontSize: "14px", color: "#fff" }}>{formatSender(selectedEmail.data.from)}</span>
-                          <span style={{ fontSize: "12px", color: "#9aa0a6" }}>{selectedEmail.data.date ? formatMessageDate(selectedEmail.data.date) : ""}</span>
+                          <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>{formatSender(selectedEmail.data.from)}</span>
+                          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{selectedEmail.data.date ? formatMessageDate(selectedEmail.data.date) : ""}</span>
                         </div>
-                        <div style={{ fontSize: "12px", color: "#9aa0a6", marginTop: "2px" }}>to: {selectedEmail.data.to}</div>
+                        <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>to: {selectedEmail.data.to}</div>
                       </div>
                     </div>
 
-                    {/* Email body block container text styling matching real inbox line height maps */}
-                    <div style={{ fontSize: "14px", color: "#e8eaed", lineHeight: "1.6", whiteSpace: "pre-wrap", overflowX: "hidden" }}>
+                    <div style={{ fontSize: "14px", color: "var(--text-secondary)", lineHeight: 1.6, whiteSpace: "pre-wrap", overflowX: "hidden" }}>
                       <LinkifiedText text={selectedEmail.data.body || selectedEmail.data.snippet || "(empty message body)"} />
                     </div>
                   </div>

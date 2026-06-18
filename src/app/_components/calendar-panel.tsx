@@ -233,8 +233,8 @@ export function CalendarPanel() {
             </button>
           </div>
           <div className="cal-mini-grid">
-            {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
-              <div key={d} className="cal-mini-day-label">{d}</div>
+            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+              <div key={`weekday-${i}`} className="cal-mini-day-label">{d}</div>
             ))}
             {miniMonthDays.map(({ date, inMonth }, i) => (
               <button

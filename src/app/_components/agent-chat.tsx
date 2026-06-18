@@ -41,8 +41,8 @@ const SUGGESTIONS = [
 function parseLastAction(toolCalls: string[], reply: string, userMessage: string): LastAction | null {
   if (!toolCalls.length) return null;
   const tool = toolCalls[0] ?? "action";
-  const emailMatch = userMessage.match(/([\w.-]+@[\w.-]+\.\w+)/i);
-  const subjectMatch = userMessage.match(/about\s+(.+?)(?:\s+at\s+|\s*$)/i);
+  const emailMatch = /([\w.-]+@[\w.-]+\.\w+)/i.exec(userMessage);
+  const subjectMatch = /about\s+(.+?)(?:\s+at\s+|\s*$)/i.exec(userMessage);
   return {
     tool,
     to: emailMatch?.[1],
@@ -152,7 +152,7 @@ export function AgentChat() {
             <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--text-muted)" }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🤖</div>
               <p style={{ fontSize: 15, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 8 }}>
-                Superhuman AI
+              CommandFlow AI
               </p>
               <p style={{ fontSize: 13, marginBottom: 20 }}>
                 Send emails, schedule meetings, and manage your inbox with natural language.
@@ -179,7 +179,7 @@ export function AgentChat() {
               </div>
               <div className="agent-msg-content">
                 <div className="agent-msg-meta">
-                  {msg.role === "user" ? "You" : "Superhuman AI"} ·{" "}
+                  {msg.role === "user" ? "You" : "CommandFlow AI"} ·{" "}
                   {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </div>
                 <div className="agent-msg-text">{msg.content}</div>
@@ -290,7 +290,7 @@ export function AgentChat() {
             </button>
           </div>
           <p className="agent-disclaimer">
-            Superhuman AI can make mistakes. Consider checking important info.
+          CommandFlow AI can make mistakes. Consider checking important info.
           </p>
         </div>
       </div>

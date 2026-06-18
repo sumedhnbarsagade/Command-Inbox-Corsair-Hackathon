@@ -33,7 +33,7 @@ export function AppRail({
 
   return (
     <aside className="app-rail">
-      <div className="app-rail-logo" title="Superhuman">
+      <div className="app-rail-logo" title="CommandFlow">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
           <path
             d="M3 12L12 3l9 9-9 9-9-9z"

@@ -7,24 +7,62 @@ datasource db {
   provider = "postgresql"
 }
 
-// Starter models — replace with your own
+// ── Corsair tables (mapped to existing Drizzle table/column names) ──
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  posts     Post[]
+model CorsairIntegration {
+  id        String   @id
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  name      String
+  config    Json     @default("{}")
+  dek       String?
+
+  accounts CorsairAccount[]
+
+  @@map("corsair_integrations")
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  String
+model CorsairAccount {
+  id            String   @id
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  tenantId      String   @map("tenant_id")
+  integrationId String   @map("integration_id")
+  config        Json     @default("{}")
+  dek           String?
+
+  integration CorsairIntegration @relation(fields: [integrationId], references: [id])
+  entities    CorsairEntity[]
+  events      CorsairEvent[]
+
+  @@map("corsair_accounts")
+}
+
+model CorsairEntity {
+  id         String   @id
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  accountId  String   @map("account_id")
+  entityId   String   @map("entity_id")
+  entityType String   @map("entity_type")
+  version    String
+  data       Json     @default("{}")
+
+  account CorsairAccount @relation(fields: [accountId], references: [id])
+
+  @@map("corsair_entities")
+}
+
+model CorsairEvent {
+  id        String   @id
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  accountId String   @map("account_id")
+  eventType String   @map("event_type")
+  payload   Json     @default("{}")
+  status    String?
+
+  account CorsairAccount @relation(fields: [accountId], references: [id])
+
+  @@map("corsair_events")
 }

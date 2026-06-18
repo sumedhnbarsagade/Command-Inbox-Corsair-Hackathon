@@ -7,22 +7,16 @@ const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const userCount = await prisma.user.count();
-  const postCount = await prisma.post.count();
+  const integrationCount = await prisma.corsairIntegration.count();
+  const accountCount = await prisma.corsairAccount.count();
+  const entityCount = await prisma.corsairEntity.count();
+  const eventCount = await prisma.corsairEvent.count();
 
-  console.log(`✅ Connected — ${userCount} users, ${postCount} posts in database.`);
-
-  const users = await prisma.user.findMany({
-    include: { posts: { select: { title: true, published: true } } },
-    take: 5,
-  });
-
-  for (const user of users) {
-    console.log(`  👤 ${user.name} (${user.email}) — ${user.posts.length} posts`);
-    for (const post of user.posts) {
-      console.log(`     ${post.published ? "📗" : "📝"} ${post.title}`);
-    }
-  }
+  console.log(`✅ Connected to Prisma Postgres`);
+  console.log(`   ${integrationCount} integrations`);
+  console.log(`   ${accountCount} accounts`);
+  console.log(`   ${entityCount} entities`);
+  console.log(`   ${eventCount} events`);
 }
 
 main()

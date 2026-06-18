@@ -7,67 +7,32 @@ const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log("🌱 Seeding Corsair tables...");
 
-  // Upsert users
-  const alice = await prisma.user.upsert({
-    where: { email: "alice@example.com" },
+  // Seed a test integration
+  await prisma.corsairIntegration.upsert({
+    where: { id: "seed-integration-1" },
     update: {},
     create: {
-      email: "alice@example.com",
-      name: "Alice Johnson",
+      id: "seed-integration-1",
+      name: "gmail",
+      config: { provider: "google", scopes: ["mail.read", "mail.send"] },
     },
   });
 
-  const bob = await prisma.user.upsert({
-    where: { email: "bob@example.com" },
+  // Seed a test account
+  await prisma.corsairAccount.upsert({
+    where: { id: "seed-account-1" },
     update: {},
     create: {
-      email: "bob@example.com",
-      name: "Bob Smith",
+      id: "seed-account-1",
+      tenantId: "dev",
+      integrationId: "seed-integration-1",
+      config: { email: "demo@example.com" },
     },
   });
 
-  // Create posts for Alice
-  await prisma.post.upsert({
-    where: { id: "seed-post-1" },
-    update: {},
-    create: {
-      id: "seed-post-1",
-      title: "Getting Started with Prisma",
-      content:
-        "Prisma makes database access easy with its type-safe query builder.",
-      published: true,
-      authorId: alice.id,
-    },
-  });
-
-  await prisma.post.upsert({
-    where: { id: "seed-post-2" },
-    update: {},
-    create: {
-      id: "seed-post-2",
-      title: "Prisma Postgres Tips",
-      content: "Prisma Postgres scales to zero and includes a generous free tier.",
-      published: true,
-      authorId: alice.id,
-    },
-  });
-
-  // Create a draft post for Bob
-  await prisma.post.upsert({
-    where: { id: "seed-post-3" },
-    update: {},
-    create: {
-      id: "seed-post-3",
-      title: "Draft: My First Post",
-      content: "This is a work in progress.",
-      published: false,
-      authorId: bob.id,
-    },
-  });
-
-  console.log("✅ Seeded 2 users and 3 posts");
+  console.log("✅ Seeded 1 integration and 1 account");
 }
 
 main()

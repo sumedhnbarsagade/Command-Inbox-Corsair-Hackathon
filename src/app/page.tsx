@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/trpc/react";
 
+import { AppRail, type AppTab } from "@/app/_components/app-rail";
 import { AgentChat } from "@/app/_components/agent-chat";
 import { CalendarPanel } from "@/app/_components/calendar-panel";
 import {
@@ -11,7 +12,7 @@ import {
 } from "@/app/_components/command-palette";
 import { GmailPanel } from "@/app/_components/gmail-panel";
 
-type Tab = "gmail" | "calendar";
+type Tab = AppTab;
 type ThemeMode = "light" | "dark";
 
 const SHORTCUTS = [
@@ -30,7 +31,6 @@ const SHORTCUTS = [
 export default function Home() {
   const [tab, setTab] = useState<Tab>("gmail");
   const [showCmdPalette, setShowCmdPalette] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showHints, setShowHints] = useState(true);
   const [theme, setTheme] = useState<ThemeMode>("dark");
@@ -64,7 +64,15 @@ export default function Home() {
     const nextTheme = storedTheme === "light" ? "light" : "dark";
     setTheme(nextTheme);
     document.documentElement.dataset.theme = nextTheme;
-  }, []);
+
+    // Sync session cookie → localStorage (needed after Google OAuth redirect)
+    const match = /(?:^|; )userId=([^;]*)/.exec(document.cookie);
+    const cookieUserId = match ? decodeURIComponent(match[1] ?? "") : null;
+    if (cookieUserId && window.localStorage.getItem("userId") !== cookieUserId) {
+      window.localStorage.setItem("userId", cookieUserId);
+      void utils.auth.getMe.invalidate();
+    }
+  }, [utils.auth.getMe]);
 
   const toggleTheme = () => {
     setTheme((current) => {
@@ -118,6 +126,8 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const err = params.get("oauth_error");
       const success = params.get("connection_success");
+      const loginSuccess = params.get("login_success");
+
       if (err) {
         setOauthError(decodeURIComponent(err));
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -126,6 +136,15 @@ export default function Home() {
         setConnectionSuccess(decodeURIComponent(success));
         window.history.replaceState({}, document.title, window.location.pathname);
         void utils.auth.getGoogleOAuthStatus.invalidate();
+      }
+      if (loginSuccess) {
+        const match = /(?:^|; )userId=([^;]*)/.exec(document.cookie);
+        const cookieUserId = match ? decodeURIComponent(match[1] ?? "") : null;
+        if (cookieUserId) {
+          window.localStorage.setItem("userId", cookieUserId);
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+        window.location.reload();
       }
     }
   }, [utils.auth.getGoogleOAuthStatus]);
@@ -242,7 +261,7 @@ export default function Home() {
         description: "Chat with AI to send emails and schedule meetings",
         icon: "🤖",
         section: "Agent",
-        action: () => setShowChat(true),
+        action: () => setTab("agent"),
       },
       {
         id: "shortcuts",
@@ -303,8 +322,8 @@ export default function Home() {
             display: flex;
             justify-content: center;
             align-items: center;
-            background: radial-gradient(circle at top right, rgba(91, 143, 249, 0.08), transparent 45%),
-                        radial-gradient(circle at bottom left, rgba(155, 109, 255, 0.08), transparent 45%),
+            background: radial-gradient(circle at top right, rgba(0, 120, 212, 0.08), transparent 45%),
+                        radial-gradient(circle at bottom left, rgba(0, 120, 212, 0.05), transparent 45%),
                         #0b0b0c;
             font-family: var(--font-sans);
           }
@@ -366,7 +385,7 @@ export default function Home() {
           .auth-btn-primary {
             width: 100%;
             padding: 12px;
-            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            background: var(--accent-primary);
             color: #fff;
             border: none;
             border-radius: var(--radius-sm);
@@ -610,7 +629,7 @@ export default function Home() {
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            background: var(--accent-primary);
             color: white;
             padding: 14px 28px;
             border-radius: var(--radius-md);
@@ -647,7 +666,7 @@ export default function Home() {
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell-v2">
       {oauthError && (
         <div className="banner banner-error" onClick={() => setOauthError(null)}>
           <span>⚠️ {oauthError}</span>
@@ -662,246 +681,47 @@ export default function Home() {
         </div>
       )}
 
-      <style>{`
-        .banner {
-          position: fixed;
-          top: 16px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 1000;
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 20px;
-          border-radius: var(--radius-md);
-          font-size: 13px;
-          font-weight: 500;
-          box-shadow: var(--shadow-lg);
-          cursor: pointer;
-          animation: slideDown 200ms ease-out;
-        }
-        .banner-error {
-          background: rgba(248, 113, 113, 0.95);
-          border: 1px solid var(--accent-red);
-          color: #fff;
-        }
-        .banner-success {
-          background: rgba(74, 222, 128, 0.95);
-          border: 1px solid var(--accent-green);
-          color: #111;
-        }
-        .banner-close {
-          background: transparent;
-          border: none;
-          color: inherit;
-          font-weight: bold;
-          cursor: pointer;
-        }
-        @keyframes slideDown {
-          from { transform: translate(-50%, -20px); opacity: 0; }
-          to { transform: translate(-50%, 0); opacity: 1; }
-        }
-        .unconfigured-pane {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          width: 100%;
-          height: 100vh;
-          background: var(--bg-base);
-          padding: 40px;
-        }
-      `}</style>
+      <AppRail
+        activeTab={tab}
+        onTabChange={setTab}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        userInitial={meData?.user?.name ?? meData?.user?.email ?? "U"}
+        userEmail={meData?.user?.email}
+        onSignOut={handleLogout}
+        agentDisabled={!isGoogleConfigured}
+      />
 
-      <nav className="sidebar">
-        <div className="sidebar-logo">
-          <div className="sidebar-logo-icon">⚡</div>
-          <span className="sidebar-logo-text">Superhuman</span>
-        </div>
-
-        <div className="sidebar-nav">
-          <div className="sidebar-section">
-            <div className="sidebar-section-label">Workspace</div>
-            <button
-              type="button"
-              className={`sidebar-item ${tab === "gmail" ? "active" : ""}`}
-              onClick={() => setTab("gmail")}
-            >
-              <span className="sidebar-item-icon">✉️</span>
-              Email
-              <span className="sidebar-shortcut">i</span>
-            </button>
-            <button
-              type="button"
-              className={`sidebar-item ${tab === "calendar" ? "active" : ""}`}
-              onClick={() => setTab("calendar")}
-            >
-              <span className="sidebar-item-icon">📅</span>
-              Calendar
-            </button>
-          </div>
-
-          <div className="sidebar-section">
-            <div className="sidebar-section-label">Tools</div>
-            <button
-              type="button"
-              className={`sidebar-item ${showChat ? "active" : ""}`}
-              onClick={() => setShowChat((v) => !v)}
-              disabled={!isGoogleConfigured}
-            >
-              <span className="sidebar-item-icon">🤖</span>
-              Agent Chat
-            </button>
-          </div>
-        </div>
-
-        <div className="sidebar-bottom">
-          <div style={{ padding: "0 12px", marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", textOverflow: "ellipsis", overflow: "hidden" }}>
-              Logged in as
+      <div className="workspace-main">
+        <div className="workspace-content">
+          {!isGoogleConfigured ? (
+            <div className="onboarding-pane">
+              <div className="onboarding-card">
+                <div className="onboarding-icon">⚙️</div>
+                <h2 className="onboarding-title">Google OAuth Required</h2>
+                <p className="onboarding-desc">
+                  To link Gmail and Google Calendar, configure your Google Cloud OAuth credentials.
+                </p>
+                <button type="button" className="onboarding-btn" onClick={() => setShowConfigModal(true)}>
+                  Configure credentials
+                </button>
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500, textOverflow: "ellipsis", overflow: "hidden" }}>
-              {meData?.user?.name ?? meData?.user?.email}
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--accent-red)",
-                fontSize: 12,
-                cursor: "pointer",
-                padding: "4px 0",
-                marginTop: 2,
-                textAlign: "left"
-              }}
-            >
-              Sign Out
-            </button>
-          </div>
-
-          {/* Settings button to open OAuth Credentials config */}
-          <button
-            type="button"
-            className="sidebar-item"
-            style={{ marginBottom: 12, width: "calc(100% - 24px)", margin: "0 auto 12px auto" }}
-            onClick={() => {
-              setClientId("");
-              setClientSecret("");
-              setConfigError(null);
-              setShowConfigModal(true);
-            }}
-          >
-            <span className="sidebar-item-icon">⚙️</span>
-            OAuth Settings
-          </button>
-
-          <button
-            type="button"
-            className="sidebar-cmd-k"
-            onClick={() => setShowCmdPalette(true)}
-          >
-            <span>⌘</span>
-            Search commands
-            <span className="cmd-k-shortcut">⌘K</span>
-          </button>
-        </div>
-      </nav>
-
-      <div className="main-content">
-        <header className="topbar">
-          <div>
-            <div className="topbar-title">
-              {tab === "gmail" ? "Inbox" : "Calendar"}
-            </div>
-            <div className="topbar-subtitle">
-              {meData?.user ? `Tenant: ${meData.user.email}` : "Powered by Corsair"}
-            </div>
-          </div>
-          <div className="topbar-actions">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => setShowShortcuts(true)}
-              title="Keyboard shortcuts"
-            >
-              ?
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={toggleTheme}
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
-            </button>
-            <button
-              type="button"
-              className={`btn ${showChat ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => setShowChat((v) => !v)}
-              disabled={!isGoogleConfigured}
-            >
-              🤖 Agent
-            </button>
-          </div>
-        </header>
-
-        {/* 4. Settings not configured */}
-        {!isGoogleConfigured ? (
-          <div className="unconfigured-pane">
-            <div className="onboarding-card">
-              <div className="onboarding-icon">⚙️</div>
-              <h2 className="onboarding-title">Google OAuth Required</h2>
-              <p className="onboarding-desc">
-                To link Gmail and Google Calendar, you must configure your Google Cloud Platform OAuth Credentials. Provide a Client ID and Client Secret to enable logins.
-              </p>
-              <button
-                type="button"
-                className="onboarding-btn"
-                onClick={() => setShowConfigModal(true)}
-              >
-                Configure credentials
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* 5. Connected dashboards or Onboarding triggers */
-          <>
-            {tab === "gmail" ? (
-              oauthStatus.data?.gmailConnected ? (
-                <GmailPanel />
-              ) : (
-                renderOnboarding("gmail")
-              )
-            ) : oauthStatus.data?.calendarConnected ? (
-              <CalendarPanel />
+          ) : tab === "agent" ? (
+            <AgentChat />
+          ) : tab === "gmail" ? (
+            oauthStatus.data?.gmailConnected ? (
+              <GmailPanel />
             ) : (
-              renderOnboarding("googlecalendar")
-            )}
-          </>
-        )}
-
-        <footer className="status-bar">
-          <span>
-            <span
-              className="status-dot"
-              style={{
-                background:
-                  oauthStatus.data?.gmailConnected && oauthStatus.data?.calendarConnected
-                    ? "var(--accent-green)"
-                    : "var(--accent-yellow)",
-              }}
-            />
-            {oauthStatus.data?.gmailConnected && oauthStatus.data?.calendarConnected
-              ? "All services synced"
-              : "Connecting services..."}
-          </span>
-          <span>Webhooks: /api/webhooks</span>
-        </footer>
+              renderOnboarding("gmail")
+            )
+          ) : oauthStatus.data?.calendarConnected ? (
+            <CalendarPanel />
+          ) : (
+            renderOnboarding("googlecalendar")
+          )}
+        </div>
       </div>
-
-      <AgentChat isOpen={showChat} onClose={() => setShowChat(false)} />
 
       <CommandPalette
         isOpen={showCmdPalette}

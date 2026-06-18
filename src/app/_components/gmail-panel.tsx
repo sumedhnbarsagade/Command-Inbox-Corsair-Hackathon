@@ -343,28 +343,19 @@ export function GmailPanel() {
   );
 
   return (
-    <div className="email-pane" style={{ display: "flex", height: "100vh", background: "#111", color: "#e8eaed", fontFamily: "Roboto, Arial, sans-serif" }}>
+    <div className="email-pane" style={{ display: "flex", flex: 1, overflow: "hidden", background: "var(--bg-base)", color: "var(--text-primary)" }}>
       {composeModal}
 
-      {/* COLUMN 1: Far Left Google App Strip */}
-      <div style={{ width: "64px", background: "#161616", borderRight: "1px solid #282828", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: "16px", gap: "24px" }}>
-        <button className="btn-icon" style={{ color: "#1a73e8", background: "transparent", border: "none" }}><Mail size={20} /></button>
-        <button className="btn-icon" style={{ color: "#9aa0a6", background: "transparent", border: "none" }}><MessageSquare size={20} /></button>
-        <button className="btn-icon" style={{ color: "#9aa0a6", background: "transparent", border: "none" }}><Video size={20} /></button>
-        <div style={{ width: "32px", height: "1px", background: "#282828" }} />
-        <button className="btn-icon" style={{ color: "#9aa0a6", background: "transparent", border: "none" }}><Calendar size={20} /></button>
-      </div>
-
-      {/* COLUMN 2: Standard Folders Navigation Menu Tree */}
-      <div style={{ width: "240px", background: "#1f1f1f", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+      {/* Folder navigation */}
+      <div style={{ width: "240px", background: "var(--bg-surface)", padding: "12px 8px", display: "flex", flexDirection: "column", gap: "4px", borderRight: "1px solid var(--border-subtle)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "4px 8px", marginBottom: "16px" }}>
-          <Menu size={18} className="muted" style={{ cursor: "pointer" }} />
-          <span style={{ fontSize: "20px", fontWeight: "500", color: "#fff" }}>Gmail</span>
+          <Menu size={18} style={{ cursor: "pointer", color: "var(--text-muted)" }} />
+          <span style={{ fontSize: "20px", fontWeight: "500", color: "var(--text-primary)" }}>Gmail</span>
         </div>
 
         <button 
           onClick={() => { setTo(""); setSubject(""); setBody(""); setAttachments([]); setShowCompose(true); }} 
-          style={{ width: "140px", background: "#303134", color: "#e8eaed", padding: "16px 24px", borderRadius: "16px", fontWeight: "500", display: "flex", alignItems: "center", gap: "12px", border: "none", cursor: "pointer", transition: "box-shadow 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+          style={{ width: "140px", background: "var(--bg-elevated)", color: "var(--text-primary)", padding: "16px 24px", borderRadius: "16px", fontWeight: "500", display: "flex", alignItems: "center", gap: "12px", border: "1px solid var(--border-default)", cursor: "pointer", boxShadow: "var(--shadow-sm)" }}
         >
           <span style={{ fontSize: "20px" }}>✏️</span> Compose
         </button>

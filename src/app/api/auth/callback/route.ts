@@ -5,7 +5,79 @@ import { and, eq } from "drizzle-orm";
 
 import { corsair, ensureCorsairConfigured } from "@/server/corsair";
 import { db } from "@/server/db";
-import { users, corsairAccounts } from "@/server/db/schema";
+import {
+  users,
+  corsairAccounts,
+  corsairEntities,
+  corsairEvents,
+} from "@/server/db/schema";
+
+async function deleteAccountCascade(accountId: string) {
+  await db
+    .delete(corsairEntities)
+    .where(eq(corsairEntities.accountId, accountId))
+    .execute();
+  await db
+    .delete(corsairEvents)
+    .where(eq(corsairEvents.accountId, accountId))
+    .execute();
+  await db
+    .delete(corsairAccounts)
+    .where(eq(corsairAccounts.id, accountId))
+    .execute();
+}
+
+async function migrateTempTenantToEmail(tempTenantId: string, tenantEmail: string) {
+  const tempClient = corsair.withTenant(tempTenantId);
+  const emailClient = corsair.withTenant(tenantEmail);
+
+  // Capture OAuth tokens from temp tenant before DB migration
+  let accessToken: string | null = null;
+  let refreshToken: string | null = null;
+  try {
+    accessToken = await tempClient.gmail.keys.get_access_token();
+    refreshToken = await tempClient.gmail.keys.get_refresh_token();
+  } catch {
+    // Keys may not exist yet for all plugins
+  }
+
+  const tempAccounts = await db
+    .select()
+    .from(corsairAccounts)
+    .where(eq(corsairAccounts.tenantId, tempTenantId))
+    .execute();
+
+  for (const tempAcc of tempAccounts) {
+    const existingForEmail = await db
+      .select()
+      .from(corsairAccounts)
+      .where(
+        and(
+          eq(corsairAccounts.tenantId, tenantEmail),
+          eq(corsairAccounts.integrationId, tempAcc.integrationId),
+        ),
+      )
+      .execute();
+
+    for (const existingAcc of existingForEmail) {
+      await deleteAccountCascade(existingAcc.id);
+    }
+
+    await db
+      .update(corsairAccounts)
+      .set({ tenantId: tenantEmail, updatedAt: new Date() })
+      .where(eq(corsairAccounts.id, tempAcc.id))
+      .execute();
+  }
+
+  // Re-apply tokens on the real email tenant (keys are stored per tenantId)
+  if (accessToken) {
+    await emailClient.gmail.keys.set_access_token(accessToken);
+  }
+  if (refreshToken) {
+    await emailClient.gmail.keys.set_refresh_token(refreshToken);
+  }
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -46,22 +118,19 @@ export async function GET(request: NextRequest) {
     );
 
     let tenantEmail = result.tenantId;
+    const isLoginFlow = result.tenantId.startsWith("temp_");
 
-    if (result.tenantId.startsWith("temp_")) {
-      // 1. Fetch access token from Corsair keys manager
-      const tenantClient = corsair.withTenant(result.tenantId);
-      const accessToken = await tenantClient.gmail.keys.get_access_token();
+    if (isLoginFlow) {
+      const tempClient = corsair.withTenant(result.tenantId);
+      const accessToken = await tempClient.gmail.keys.get_access_token();
       if (!accessToken) {
         throw new Error("No access token found for temporary tenant");
       }
 
-      // 2. Fetch email address from Google Gmail Profile API
       const profileRes = await fetch(
         "https://gmail.googleapis.com/gmail/v1/users/me/profile",
         {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+          headers: { Authorization: `Bearer ${accessToken}` },
         },
       );
 
@@ -74,36 +143,9 @@ export async function GET(request: NextRequest) {
       const profileData = (await profileRes.json()) as { emailAddress: string };
       tenantEmail = profileData.emailAddress.toLowerCase();
 
-      // 3. Migrate the temp account row in database to use user's email
-      const tempAccounts = await db
-        .select()
-        .from(corsairAccounts)
-        .where(eq(corsairAccounts.tenantId, result.tenantId))
-        .execute();
-
-      if (tempAccounts.length > 0 && tempAccounts[0]) {
-        const tempAcc = tempAccounts[0];
-        // Delete any pre-existing account to avoid unique constraints violation
-        await db
-          .delete(corsairAccounts)
-          .where(
-            and(
-              eq(corsairAccounts.tenantId, tenantEmail),
-              eq(corsairAccounts.integrationId, tempAcc.integrationId),
-            ),
-          )
-          .execute();
-
-        // Rename temp account to user email
-        await db
-          .update(corsairAccounts)
-          .set({ tenantId: tenantEmail, updatedAt: new Date() })
-          .where(eq(corsairAccounts.id, tempAcc.id))
-          .execute();
-      }
+      await migrateTempTenantToEmail(result.tenantId, tenantEmail);
     }
 
-    // Look up or create user based on the resolved email
     const existing = await db
       .select()
       .from(users)
@@ -128,13 +170,16 @@ export async function GET(request: NextRequest) {
     }
 
     const response = NextResponse.redirect(
-      new URL("/?connection_success=" + result.plugin, request.url),
+      isLoginFlow
+        ? new URL("/?login_success=1", request.url)
+        : new URL("/?connection_success=" + result.plugin, request.url),
     );
 
-    // Write session cookie
     response.cookies.set("userId", userId, {
       path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+      httpOnly: false,
     });
 
     return response;
